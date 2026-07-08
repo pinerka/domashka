@@ -11,6 +11,13 @@ export type DailyRoom = {
   token?: string;
 };
 
+export class DailyRoomError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DailyRoomError";
+  }
+}
+
 export async function createDailyRoom(request: DailyRoomRequest): Promise<DailyRoom> {
   const roomName = `learnspace-${request.lessonId}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
   const requestedExpiration = Math.floor(new Date(request.endsAt).getTime() / 1000) + 60 * 60;
@@ -18,10 +25,7 @@ export async function createDailyRoom(request: DailyRoomRequest): Promise<DailyR
   const expiration = Math.max(requestedExpiration, minimumExpiration);
 
   if (!process.env.DAILY_API_KEY) {
-    return {
-      provider: "daily",
-      roomUrl: `https://example.daily.co/${roomName}`
-    };
+    throw new DailyRoomError("Daily API key is not configured");
   }
 
   const apiUrl = process.env.DAILY_API_URL ?? "https://api.daily.co/v1";
@@ -46,16 +50,17 @@ export async function createDailyRoom(request: DailyRoomRequest): Promise<DailyR
   });
 
   if (!response.ok) {
-    return {
-      provider: "daily",
-      roomUrl: `https://example.daily.co/${roomName}`
-    };
+    throw new DailyRoomError(`Daily room creation failed with status ${response.status}`);
   }
 
   const data = (await response.json()) as { url?: string };
 
+  if (!data.url) {
+    throw new DailyRoomError("Daily did not return a room URL");
+  }
+
   return {
     provider: "daily",
-    roomUrl: data.url ?? `https://example.daily.co/${roomName}`
+    roomUrl: data.url
   };
 }

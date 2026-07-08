@@ -92,6 +92,19 @@ const PDFJS_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.mjs
 const PDFJS_WORKER_URL = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs";
 const WHITEBOARD_SYNC_EVENT = "whiteboard-state";
 
+function isValidDailyRoomUrl(roomUrl?: string) {
+  if (!roomUrl) {
+    return false;
+  }
+
+  try {
+    const url = new URL(roomUrl);
+    return url.protocol === "https:" && url.hostname.endsWith(".daily.co");
+  } catch {
+    return false;
+  }
+}
+
 function distanceToStroke(point: Point, stroke: Stroke) {
   return Math.min(...stroke.points.map((strokePoint) => Math.hypot(point.x - strokePoint.x, point.y - strokePoint.y)));
 }
@@ -198,6 +211,7 @@ export function LessonRoomClient({
   const [boardPan, setBoardPan] = useState<BoardPan | null>(null);
   const [boardZoom, setBoardZoom] = useState(1);
   const isTeacher = userRole === "teacher";
+  const hasVideoRoom = isValidDailyRoomUrl(roomUrl);
   const boardZoomRef = useRef(boardZoom);
   const strokesRef = useRef(strokes);
   const textsRef = useRef(texts);
@@ -884,7 +898,7 @@ export function LessonRoomClient({
                     <MoreHorizontal className="h-5 w-5 text-[#616a86]" />
                   </div>
                   <div className="relative h-[210px] overflow-hidden rounded-xl bg-[#2e2e2f] text-white">
-                    {roomUrl ? (
+                    {hasVideoRoom ? (
                       <iframe
                         title="Daily video room"
                         src={roomUrl}
@@ -893,7 +907,8 @@ export function LessonRoomClient({
                       />
                     ) : (
                       <div className="flex h-full flex-col justify-center p-8">
-                        <p className="text-center text-base text-slate-200">Камера выключена</p>
+                        <p className="text-center text-base font-bold text-slate-200">Видеокомната не создана</p>
+                        <p className="mt-2 text-center text-xs leading-5 text-slate-400">Создайте новый урок после настройки Daily.</p>
                         <span className="absolute bottom-3 left-3 rounded-md bg-black/50 px-3 py-1 text-sm font-bold">Вы</span>
                       </div>
                     )}

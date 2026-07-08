@@ -32,7 +32,11 @@ export async function createLessonAction(formData: FormData) {
     title,
     startsAt,
     endsAt
-  });
+  }).catch(() => null);
+
+  if (!room) {
+    redirect("/lessons/new?error=video");
+  }
 
   const lesson: PlannedLesson = {
     id: lessonId,

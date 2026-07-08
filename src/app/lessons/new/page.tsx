@@ -1,4 +1,4 @@
-import { Bell, BookOpen, CalendarDays, ChevronDown, Clock, Grid2X2, Sparkles, Type, User, Users } from "lucide-react";
+import { AlertCircle, Bell, BookOpen, CalendarDays, ChevronDown, Clock, Grid2X2, Sparkles, Type, User, Users } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,12 @@ function CalendarIllustration() {
   );
 }
 
-export default function NewLessonPage() {
+export default async function NewLessonPage({
+  searchParams
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const params = await searchParams;
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -88,6 +93,18 @@ export default function NewLessonPage() {
               </span>
               <h2 className="text-2xl font-black text-[#111426]">Данные урока</h2>
             </div>
+
+            {params.error === "video" ? (
+              <div className="mb-8 flex gap-3 rounded-2xl border border-red-100 bg-red-50 p-4 text-red-700">
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <p className="font-black">Не удалось создать видеокомнату</p>
+                  <p className="mt-1 text-sm leading-6">
+                    Проверьте DAILY_API_KEY в настройках Vercel и создайте урок заново.
+                  </p>
+                </div>
+              </div>
+            ) : null}
 
             <form action={createLessonAction} className="grid gap-8">
               <div className="grid gap-3">
