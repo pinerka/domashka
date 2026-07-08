@@ -23,14 +23,15 @@ export default function TeachersPage() {
           </div>
         </header>
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-3">
-          {teachers.map((teacher) => (
+        {teachers.length > 0 ? (
+          <div className="mt-8 grid gap-4 lg:grid-cols-3">
+            {teachers.map((teacher) => (
             <Card key={teacher.id} className="rounded-[1.35rem] border-[#e3e4ef] shadow-[0_3px_10px_rgba(17,24,39,0.06)]">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <Avatar className="h-16 w-16">
-                      <AvatarImage src={teacher.avatar} alt={teacher.name} />
+                      {teacher.avatar ? <AvatarImage src={teacher.avatar} alt={teacher.name} /> : null}
                       <AvatarFallback>{teacher.name.slice(0, 2)}</AvatarFallback>
                     </Avatar>
                     <div>
@@ -43,7 +44,7 @@ export default function TeachersPage() {
                   </div>
                   <span className="flex items-center gap-1 text-sm font-bold">
                     <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                    {teacher.rating}
+                    {teacher.rating > 0 ? teacher.rating.toFixed(1) : "новый"}
                   </span>
                 </div>
                 <p className="mt-5 font-semibold text-[#131525]">{teacher.headline}</p>
@@ -54,15 +55,21 @@ export default function TeachersPage() {
                   ))}
                 </div>
                 <div className="mt-6 flex items-center justify-between border-t border-[#ececf4] pt-5">
-                  <p className="font-black">{teacher.price.toLocaleString("ru-RU")} ₽ / час</p>
+                  <p className="font-black">{teacher.price > 0 ? `${teacher.price.toLocaleString("ru-RU")} ₽ / час` : "Цена не указана"}</p>
                   <Button asChild className="rounded-full bg-[#675cff] hover:bg-[#5b50f0]">
                     <Link href={`/teachers/${teacher.id}`}>Профиль</Link>
                   </Button>
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mt-8 rounded-[1.35rem] border border-[#e3e4ef] bg-white p-8 text-center shadow-[0_3px_10px_rgba(17,24,39,0.06)]">
+            <p className="text-lg font-black text-[#131525]">Преподавателей пока нет</p>
+            <p className="mt-2 text-slate-500">Когда пользователь выберет роль преподавателя, он появится здесь.</p>
+          </div>
+        )}
       </main>
     </AppShell>
   );

@@ -10,8 +10,24 @@ import { teachers } from "@/lib/mock-data";
 
 export default async function TeacherProfilePage({ params }: { params: Promise<{ teacherId: string }> }) {
   const { teacherId } = await params;
-  const teacher = teachers.find((item) => item.id === teacherId) ?? teachers[0];
+  const teacher = teachers.find((item) => item.id === teacherId);
   const slots = ["Сегодня 19:00", "Завтра 17:30", "Пт 12:00", "Пт 18:30", "Сб 11:00", "Сб 16:00"];
+
+  if (!teacher) {
+    return (
+      <AppShell>
+        <main className="container py-10">
+          <section className="rounded-lg border bg-white p-8 text-center shadow-soft">
+            <h1 className="text-2xl font-semibold tracking-normal">Преподаватель не найден</h1>
+            <p className="mt-2 text-slate-600">Возможно, профиль еще не заполнен или ссылка изменилась.</p>
+            <Button asChild className="mt-5">
+              <Link href="/teachers">Вернуться к преподавателям</Link>
+            </Button>
+          </section>
+        </main>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -20,7 +36,7 @@ export default async function TeacherProfilePage({ params }: { params: Promise<{
           <section className="rounded-lg border bg-white p-6 shadow-soft">
             <div className="flex flex-col gap-5 md:flex-row md:items-start">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={teacher.avatar} alt={teacher.name} />
+                {teacher.avatar ? <AvatarImage src={teacher.avatar} alt={teacher.name} /> : null}
                 <AvatarFallback>{teacher.name.slice(0, 2)}</AvatarFallback>
               </Avatar>
               <div className="flex-1">
@@ -35,10 +51,10 @@ export default async function TeacherProfilePage({ params }: { params: Promise<{
                 <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-600">
                   <span className="flex items-center gap-1">
                     <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                    {teacher.rating} · {teacher.reviews} отзывов
+                    {teacher.rating > 0 ? teacher.rating.toFixed(1) : "новый"} · {teacher.reviews} отзывов
                   </span>
                   <span>{teacher.experience} опыта</span>
-                  <span>{teacher.price.toLocaleString("ru-RU")} ₽ / час</span>
+                  <span>{teacher.price > 0 ? `${teacher.price.toLocaleString("ru-RU")} ₽ / час` : "Цена не указана"}</span>
                 </div>
               </div>
             </div>

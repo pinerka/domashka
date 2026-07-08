@@ -47,17 +47,20 @@ export async function saveTeacherProfileAction(formData: FormData) {
     locale: "ru"
   });
 
-  const { error } = await supabase.from("teacher_profiles").upsert({
-    user_id: user.id,
-    slug,
-    headline,
-    description: text(formData, "description"),
-    hourly_rate: numberValue(formData, "hourly_rate"),
-    currency: "RUB",
-    experience_years: numberValue(formData, "experience_years"),
-    intro_video_url: text(formData, "intro_video_url") || null,
-    status: "approved"
-  });
+  const { error } = await supabase.from("teacher_profiles").upsert(
+    {
+      user_id: user.id,
+      slug,
+      headline,
+      description: text(formData, "description"),
+      hourly_rate: numberValue(formData, "hourly_rate"),
+      currency: "RUB",
+      experience_years: numberValue(formData, "experience_years"),
+      intro_video_url: text(formData, "intro_video_url") || null,
+      status: "approved"
+    },
+    { onConflict: "user_id" }
+  );
 
   if (error) {
     redirect(`/profile?role=teacher&error=${encodeURIComponent(error.message)}`);
@@ -65,6 +68,8 @@ export async function saveTeacherProfileAction(formData: FormData) {
 
   revalidatePath("/teacher");
   revalidatePath("/teacher/profile");
+  revalidatePath("/teachers");
+  revalidatePath(`/teachers/${slug}`);
   revalidatePath("/profile");
   redirect("/profile?role=teacher&saved=profile");
 }

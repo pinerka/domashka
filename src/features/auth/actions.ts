@@ -10,6 +10,14 @@ function getValue(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9а-яё]+/gi, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
 async function persistCurrentRole(role: UserRole) {
   const cookieStore = await cookies();
   cookieStore.set("learnspace_role", role, {
@@ -17,6 +25,26 @@ async function persistCurrentRole(role: UserRole) {
     sameSite: "lax",
     maxAge: 60 * 60 * 24 * 365
   });
+}
+
+async function ensureTeacherProfile(user: { id: string; email?: string | null }, fullName?: string) {
+  const supabase = await createSupabaseServerClient();
+  const displayName = fullName?.trim() || user.email?.split("@")[0] || "Преподаватель";
+  const baseSlug = slugify(displayName) || `teacher-${user.id.slice(0, 8)}`;
+
+  await supabase.from("teacher_profiles").upsert(
+    {
+      user_id: user.id,
+      slug: `${baseSlug}-${user.id.slice(0, 8)}`,
+      headline: "Преподаватель LearnSpace",
+      description: "Профиль преподавателя скоро будет заполнен.",
+      hourly_rate: 0,
+      currency: "RUB",
+      experience_years: 0,
+      status: "approved"
+    },
+    { onConflict: "user_id" }
+  );
 }
 
 export async function signInAction(formData: FormData) {
@@ -74,6 +102,10 @@ export async function signUpAction(formData: FormData) {
       locale: "ru"
     });
     await supabase.from("user_roles").upsert({ user_id: data.user.id, role });
+
+    if (role === "teacher") {
+      await ensureTeacherProfile(data.user, fullName);
+    }
   }
 
   redirect(role === "teacher" ? "/teacher/profile" : "/student");
@@ -103,6 +135,10 @@ export async function updateRoleAction(formData: FormData) {
 
   if (error) {
     redirect(`/profile?error=${encodeURIComponent(error.message)}`);
+  }
+
+  if (role === "teacher") {
+    await ensureTeacherProfile(user, user.user_metadata?.full_name);
   }
 
   redirect(`/profile?role=${role}&saved=role`);
