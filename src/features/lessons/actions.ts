@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createDailyRoom } from "@/features/video/daily";
+import { createJitsiRoom } from "@/features/video/jitsi";
 import { encodeLessonParams, type PlannedLesson } from "@/features/lessons/types";
 
 function value(formData: FormData, key: string) {
@@ -27,16 +27,10 @@ export async function createLessonAction(formData: FormData) {
   const lessonId = crypto.randomUUID();
   const { startsAt, endsAt } = buildLessonDate(date, time);
 
-  const room = await createDailyRoom({
+  const room = createJitsiRoom({
     lessonId,
-    title,
-    startsAt,
-    endsAt
-  }).catch(() => null);
-
-  if (!room) {
-    redirect("/lessons/new?error=video");
-  }
+    title
+  });
 
   const lesson: PlannedLesson = {
     id: lessonId,

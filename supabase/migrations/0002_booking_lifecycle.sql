@@ -14,7 +14,7 @@ begin
     where id = new.teacher_id;
 
     insert into public.lessons (booking_id, teacher_id, title, starts_at, ends_at, status, video_provider)
-    values (new.id, new.teacher_id, 'Online lesson', new.starts_at, new.ends_at, 'scheduled', 'daily')
+    values (new.id, new.teacher_id, 'Online lesson', new.starts_at, new.ends_at, 'scheduled', 'jitsi')
     on conflict (booking_id) do update
       set starts_at = excluded.starts_at,
           ends_at = excluded.ends_at,

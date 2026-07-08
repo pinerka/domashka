@@ -100,7 +100,7 @@ export default async function NewLessonPage({
                 <div>
                   <p className="font-black">Не удалось создать видеокомнату</p>
                   <p className="mt-1 text-sm leading-6">
-                    Проверьте DAILY_API_KEY в настройках Vercel и создайте урок заново.
+                    Создайте урок заново. Теперь видеозвонок работает без Daily.
                   </p>
                 </div>
               </div>
