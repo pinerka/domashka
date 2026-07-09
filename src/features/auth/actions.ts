@@ -55,6 +55,7 @@ export async function signInAction(formData: FormData) {
 
   const email = getValue(formData, "email");
   const password = getValue(formData, "password");
+  const nextPath = getValue(formData, "next");
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
@@ -62,7 +63,7 @@ export async function signInAction(formData: FormData) {
     redirect(`/login?error=${encodeURIComponent(error.message)}`);
   }
 
-  redirect("/student");
+  redirect(nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/student");
 }
 
 export async function signUpAction(formData: FormData) {
@@ -87,7 +88,8 @@ export async function signUpAction(formData: FormData) {
       data: {
         full_name: fullName,
         role
-      }
+      },
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/login`
     }
   });
 
@@ -107,6 +109,10 @@ export async function signUpAction(formData: FormData) {
     if (role === "teacher") {
       await ensureTeacherProfile(data.user, fullName);
     }
+  }
+
+  if (!data.session) {
+    redirect(`/login?notice=${encodeURIComponent("Аккаунт создан. Проверьте почту и подтвердите email, затем войдите.")}`);
   }
 
   redirect(role === "teacher" ? "/teacher/profile" : "/student");

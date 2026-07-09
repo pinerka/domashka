@@ -5,7 +5,13 @@ import { Input } from "@/components/ui/input";
 import { signUpAction } from "@/features/auth/actions";
 import { GraduationCap, UserRound } from "lucide-react";
 
-export default function RegisterPage() {
+export default async function RegisterPage({
+  searchParams
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const params = await searchParams;
+
   return (
     <AppShell>
       <main className="container flex min-h-[calc(100vh-5rem)] items-center justify-center py-10">
@@ -16,6 +22,11 @@ export default function RegisterPage() {
           </CardHeader>
           <CardContent>
             <form action={signUpAction} className="space-y-5">
+              {params.error ? (
+                <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                  {params.error}
+                </p>
+              ) : null}
               <Input name="full_name" placeholder="Имя" required />
               <Input name="email" type="email" placeholder="Email" required />
               <Input name="password" type="password" placeholder="Пароль" required />
