@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BookOpen, Grid2X2, LogOut, Sparkles, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { signOutAction } from "@/features/auth/actions";
 
 const navItems = [
   { href: "/", label: "Уроки", icon: Grid2X2 },
@@ -34,11 +35,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <span>{item.label}</span>
               </Link>
             ))}
-            <Button asChild variant="ghost" size="icon" aria-label="Выйти" className="text-[#161829]">
-              <Link href="/login">
+            <details className="group relative">
+              <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-xl text-[#161829] transition-colors hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
                 <LogOut className="h-5 w-5" />
-              </Link>
-            </Button>
+                <span className="sr-only">Меню аккаунта</span>
+              </summary>
+              <div className="absolute right-0 top-12 w-44 rounded-xl border border-[#e3e4ef] bg-white p-2 shadow-[0_16px_40px_rgba(17,24,39,0.12)]">
+                <form action={signOutAction}>
+                  <button
+                    type="submit"
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold text-[#161829] transition-colors hover:bg-[#f4f2ff]"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Выйти
+                  </button>
+                </form>
+              </div>
+            </details>
           </nav>
           <div className="flex items-center gap-2 lg:hidden">
             {navItems.slice(0, 1).map((item) => (
