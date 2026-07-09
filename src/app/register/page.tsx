@@ -5,12 +5,35 @@ import { Input } from "@/components/ui/input";
 import { signUpAction } from "@/features/auth/actions";
 import { GraduationCap, UserRound } from "lucide-react";
 
+function registerErrorMessage(error?: string) {
+  if (!error) {
+    return null;
+  }
+
+  const normalizedError = error.toLowerCase();
+
+  if (normalizedError.includes("email rate limit")) {
+    return "Сейчас сервис регистрации временно не может отправить письмо подтверждения. Попробуйте еще раз чуть позже или войдите, если аккаунт уже был создан.";
+  }
+
+  if (normalizedError.includes("already registered") || normalizedError.includes("already exists")) {
+    return "Аккаунт с такой почтой уже есть. Перейдите на страницу входа и войдите с этим email.";
+  }
+
+  if (normalizedError.includes("password")) {
+    return "Пароль не подходит. Используйте более длинный пароль.";
+  }
+
+  return "Не удалось создать аккаунт. Проверьте email и пароль, затем попробуйте еще раз.";
+}
+
 export default async function RegisterPage({
   searchParams
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
   const params = await searchParams;
+  const errorMessage = registerErrorMessage(params.error);
 
   return (
     <AppShell>
@@ -22,9 +45,9 @@ export default async function RegisterPage({
           </CardHeader>
           <CardContent>
             <form action={signUpAction} className="space-y-5">
-              {params.error ? (
+              {errorMessage ? (
                 <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                  {params.error}
+                  {errorMessage}
                 </p>
               ) : null}
               <Input name="full_name" placeholder="Имя" required />
@@ -60,6 +83,9 @@ export default async function RegisterPage({
               </div>
               </div>
               <Button className="h-12 w-full rounded-full bg-[#675cff] hover:bg-[#5b50f0]">Продолжить</Button>
+              <p className="text-sm leading-6 text-slate-500">
+                После регистрации вы попадете в свой кабинет. Если сервис попросит подтвердить почту, откройте письмо, подтвердите email и затем войдите на странице входа.
+              </p>
             </form>
           </CardContent>
         </Card>
