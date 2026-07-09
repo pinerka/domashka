@@ -107,7 +107,7 @@ create table public.lessons (
   starts_at timestamptz not null,
   ends_at timestamptz not null,
   status public.lesson_status not null default 'scheduled',
-  video_provider text default 'jitsi',
+  video_provider text default 'daily',
   video_room_url text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

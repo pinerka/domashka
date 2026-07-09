@@ -99,7 +99,7 @@ function isValidVideoRoomUrl(roomUrl?: string) {
 
   try {
     const url = new URL(roomUrl);
-    return url.protocol === "https:" && (url.hostname.endsWith(".daily.co") || url.hostname === "meet.jit.si");
+    return url.protocol === "https:" && url.hostname.endsWith(".daily.co");
   } catch {
     return false;
   }
@@ -900,7 +900,7 @@ export function LessonRoomClient({
                   <div className="relative h-[210px] overflow-hidden rounded-xl bg-[#2e2e2f] text-white">
                     {hasVideoRoom ? (
                       <iframe
-                        title="Video room"
+                        title="Daily video room"
                         src={roomUrl}
                         allow="camera; microphone; fullscreen; speaker; display-capture"
                         className="h-full w-full border-0"
@@ -908,7 +908,7 @@ export function LessonRoomClient({
                     ) : (
                       <div className="flex h-full flex-col justify-center p-8">
                         <p className="text-center text-base font-bold text-slate-200">Видеокомната не создана</p>
-                        <p className="mt-2 text-center text-xs leading-5 text-slate-400">Создайте новый урок, чтобы получить новую ссылку.</p>
+                        <p className="mt-2 text-center text-xs leading-5 text-slate-400">Проверьте Daily в Vercel и создайте новый урок.</p>
                         <span className="absolute bottom-3 left-3 rounded-md bg-black/50 px-3 py-1 text-sm font-bold">Вы</span>
                       </div>
                     )}
