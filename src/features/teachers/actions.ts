@@ -39,13 +39,17 @@ export async function saveTeacherProfileAction(formData: FormData) {
   const fullName = text(formData, "full_name");
   const slug = slugify(text(formData, "slug") || fullName || user.email || user.id);
 
-  await supabase.from("profiles").upsert({
+  const { error: profileError } = await supabase.from("profiles").upsert({
     id: user.id,
     full_name: fullName,
     bio: text(formData, "bio"),
     timezone: text(formData, "timezone") || "Europe/Moscow",
     locale: "ru"
   });
+
+  if (profileError) {
+    redirect(`/profile?role=teacher&error=${encodeURIComponent(profileError.message)}`);
+  }
 
   const { error } = await supabase.from("teacher_profiles").upsert(
     {

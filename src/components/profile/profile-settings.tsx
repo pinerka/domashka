@@ -11,6 +11,20 @@ import { saveTeacherProfileAction } from "@/features/teachers/actions";
 
 type Role = "student" | "teacher";
 
+export type ProfileFormValues = {
+  fullName?: string;
+  bio?: string | null;
+  timezone?: string;
+  teacher?: {
+    slug?: string;
+    headline?: string;
+    description?: string | null;
+    hourlyRate?: number | string;
+    experienceYears?: number;
+    introVideoUrl?: string | null;
+  } | null;
+};
+
 const roleCopy = {
   student: {
     label: "Ученик",
@@ -65,14 +79,14 @@ function RoleCard({
   );
 }
 
-function StudentFields() {
+function StudentFields({ values }: { values: ProfileFormValues }) {
   return (
     <form action={saveStudentProfileAction} className="grid gap-4">
       <div className="grid gap-2">
         <label className="text-sm font-bold text-[#131525]" htmlFor="student_full_name">
           Имя и фамилия
         </label>
-        <Input id="student_full_name" name="full_name" placeholder="Как вас будут видеть преподаватели" required />
+        <Input id="student_full_name" name="full_name" placeholder="Как вас будут видеть преподаватели" defaultValue={values.fullName ?? ""} required />
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-bold text-[#131525]" htmlFor="student_goal">
@@ -90,13 +104,13 @@ function StudentFields() {
         <label className="text-sm font-bold text-[#131525]" htmlFor="student_notes">
           О себе
         </label>
-        <Textarea id="student_notes" name="student_notes" placeholder="Что важно знать преподавателю перед первым уроком" />
+        <Textarea id="student_notes" name="student_notes" placeholder="Что важно знать преподавателю перед первым уроком" defaultValue={values.bio ?? ""} />
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-bold text-[#131525]" htmlFor="student_timezone">
           Часовой пояс
         </label>
-        <Input id="student_timezone" name="timezone" placeholder="Europe/Moscow" />
+        <Input id="student_timezone" name="timezone" placeholder="Europe/Moscow" defaultValue={values.timezone ?? ""} />
       </div>
       <Button className="w-fit rounded-full bg-[#675cff] hover:bg-[#5b50f0]">
         <Save className="h-4 w-4" />
@@ -106,58 +120,58 @@ function StudentFields() {
   );
 }
 
-function TeacherFields() {
+function TeacherFields({ values }: { values: ProfileFormValues }) {
   return (
     <form action={saveTeacherProfileAction} className="grid gap-4">
       <div className="grid gap-2">
         <label className="text-sm font-bold text-[#131525]" htmlFor="full_name">
           Имя
         </label>
-        <Input id="full_name" name="full_name" placeholder="Как вас будут видеть ученики" />
+        <Input id="full_name" name="full_name" placeholder="Как вас будут видеть ученики" defaultValue={values.fullName ?? ""} required />
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-bold text-[#131525]" htmlFor="slug">
           Публичная ссылка
         </label>
-        <Input id="slug" name="slug" placeholder="your-public-link" />
+        <Input id="slug" name="slug" placeholder="your-public-link" defaultValue={values.teacher?.slug ?? ""} />
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-bold text-[#131525]" htmlFor="headline">
           Заголовок профиля
         </label>
-        <Input id="headline" name="headline" placeholder="Кратко о специализации" />
+        <Input id="headline" name="headline" placeholder="Кратко о специализации" defaultValue={values.teacher?.headline ?? ""} required />
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-bold text-[#131525]" htmlFor="description">
           Описание
         </label>
-        <Textarea id="description" name="description" placeholder="Расскажите об опыте, формате занятий и результатах учеников" />
+        <Textarea id="description" name="description" placeholder="Расскажите об опыте, формате занятий и результатах учеников" defaultValue={values.teacher?.description ?? ""} />
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         <div className="grid gap-2">
           <label className="text-sm font-bold text-[#131525]" htmlFor="hourly_rate">
             Цена за час
           </label>
-          <Input id="hourly_rate" name="hourly_rate" type="number" placeholder="0" />
+          <Input id="hourly_rate" name="hourly_rate" type="number" placeholder="0" defaultValue={values.teacher?.hourlyRate ?? ""} />
         </div>
         <div className="grid gap-2">
           <label className="text-sm font-bold text-[#131525]" htmlFor="experience_years">
             Опыт, лет
           </label>
-          <Input id="experience_years" name="experience_years" type="number" placeholder="0" />
+          <Input id="experience_years" name="experience_years" type="number" placeholder="0" defaultValue={values.teacher?.experienceYears ?? ""} />
         </div>
         <div className="grid gap-2">
           <label className="text-sm font-bold text-[#131525]" htmlFor="timezone">
             Часовой пояс
           </label>
-          <Input id="timezone" name="timezone" placeholder="Europe/Moscow" />
+          <Input id="timezone" name="timezone" placeholder="Europe/Moscow" defaultValue={values.timezone ?? ""} />
         </div>
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-bold text-[#131525]" htmlFor="intro_video_url">
           Видео-визитка
         </label>
-        <Input id="intro_video_url" name="intro_video_url" placeholder="https://..." />
+        <Input id="intro_video_url" name="intro_video_url" placeholder="https://..." defaultValue={values.teacher?.introVideoUrl ?? ""} />
       </div>
       <Button className="w-fit rounded-full bg-[#675cff] hover:bg-[#5b50f0]">
         <Save className="h-4 w-4" />
@@ -167,7 +181,7 @@ function TeacherFields() {
   );
 }
 
-export function ProfileSettings({ initialRole }: { initialRole: Role }) {
+export function ProfileSettings({ initialRole, values = {} }: { initialRole: Role; values?: ProfileFormValues }) {
   const [selectedRole, setSelectedRole] = useState<Role>(initialRole);
   const savedRole = initialRole;
   const ActiveIcon = useMemo(() => roleCopy[savedRole].Icon, [savedRole]);
@@ -227,7 +241,7 @@ export function ProfileSettings({ initialRole }: { initialRole: Role }) {
               {selectedRole === "teacher" ? "Профиль преподавателя" : "Профиль ученика"}
             </CardTitle>
           </CardHeader>
-          <CardContent>{selectedRole === "teacher" ? <TeacherFields /> : <StudentFields />}</CardContent>
+          <CardContent>{selectedRole === "teacher" ? <TeacherFields values={values} /> : <StudentFields values={values} />}</CardContent>
         </Card>
       </div>
 

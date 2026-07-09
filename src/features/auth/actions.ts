@@ -98,13 +98,22 @@ export async function signUpAction(formData: FormData) {
   }
 
   if (data.user) {
-    await supabase.from("profiles").upsert({
+    const { error: profileError } = await supabase.from("profiles").upsert({
       id: data.user.id,
       full_name: fullName,
       timezone: "Europe/Moscow",
       locale: "ru"
     });
-    await supabase.from("user_roles").upsert({ user_id: data.user.id, role });
+
+    if (profileError) {
+      redirect(`/register?error=${encodeURIComponent(profileError.message)}`);
+    }
+
+    const { error: roleError } = await supabase.from("user_roles").upsert({ user_id: data.user.id, role });
+
+    if (roleError) {
+      redirect(`/register?error=${encodeURIComponent(roleError.message)}`);
+    }
 
     if (role === "teacher") {
       await ensureTeacherProfile(data.user, fullName);

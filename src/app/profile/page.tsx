@@ -1,6 +1,48 @@
 import { cookies } from "next/headers";
 import { AppShell } from "@/components/site/app-shell";
-import { ProfileSettings } from "@/components/profile/profile-settings";
+import { ProfileSettings, type ProfileFormValues } from "@/components/profile/profile-settings";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+async function getProfileValues(): Promise<ProfileFormValues> {
+  if (!isSupabaseConfigured()) {
+    return {};
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {};
+  }
+
+  const [{ data: profile }, { data: teacherProfile }] = await Promise.all([
+    supabase.from("profiles").select("full_name, bio, timezone").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("teacher_profiles")
+      .select("slug, headline, description, hourly_rate, experience_years, intro_video_url")
+      .eq("user_id", user.id)
+      .maybeSingle()
+  ]);
+
+  return {
+    fullName: profile?.full_name ?? user.user_metadata?.full_name ?? "",
+    bio: profile?.bio ?? "",
+    timezone: profile?.timezone ?? "Europe/Moscow",
+    teacher: teacherProfile
+      ? {
+          slug: teacherProfile.slug,
+          headline: teacherProfile.headline,
+          description: teacherProfile.description,
+          hourlyRate: teacherProfile.hourly_rate,
+          experienceYears: teacherProfile.experience_years,
+          introVideoUrl: teacherProfile.intro_video_url
+        }
+      : null
+  };
+}
 
 export default async function ProfilePage({
   searchParams
@@ -11,6 +53,7 @@ export default async function ProfilePage({
   const cookieStore = await cookies();
   const savedRole = cookieStore.get("learnspace_role")?.value;
   const currentRole = params.role === "teacher" || savedRole === "teacher" || params.demo === "role-teacher" ? "teacher" : "student";
+  const values = await getProfileValues();
 
   return (
     <AppShell>
@@ -20,7 +63,7 @@ export default async function ProfilePage({
           <p className="mt-3 text-xl leading-7 text-slate-500">Здесь можно поменять роль и заполнить данные профиля.</p>
         </header>
 
-        <ProfileSettings initialRole={currentRole} />
+        <ProfileSettings initialRole={currentRole} values={values} />
       </main>
     </AppShell>
   );
