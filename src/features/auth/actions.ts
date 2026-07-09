@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -142,6 +143,39 @@ export async function updateRoleAction(formData: FormData) {
   }
 
   redirect(`/profile?role=${role}&saved=role`);
+}
+
+export async function saveStudentProfileAction(formData: FormData) {
+  if (!isSupabaseConfigured()) {
+    redirect("/profile?role=student&saved=profile");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const fullName = getValue(formData, "full_name");
+
+  const { error } = await supabase.from("profiles").upsert({
+    id: user.id,
+    full_name: fullName,
+    bio: getValue(formData, "student_notes"),
+    timezone: getValue(formData, "timezone") || "Europe/Moscow",
+    locale: "ru"
+  });
+
+  if (error) {
+    redirect(`/profile?role=student&error=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/profile");
+  revalidatePath("/students");
+  redirect("/profile?role=student&saved=profile");
 }
 
 export async function signOutAction() {

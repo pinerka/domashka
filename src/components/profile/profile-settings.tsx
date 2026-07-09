@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { updateRoleAction } from "@/features/auth/actions";
+import { saveStudentProfileAction, updateRoleAction } from "@/features/auth/actions";
 import { saveTeacherProfileAction } from "@/features/teachers/actions";
 
 type Role = "student" | "teacher";
@@ -67,7 +67,13 @@ function RoleCard({
 
 function StudentFields() {
   return (
-    <div className="grid gap-4">
+    <form action={saveStudentProfileAction} className="grid gap-4">
+      <div className="grid gap-2">
+        <label className="text-sm font-bold text-[#131525]" htmlFor="student_full_name">
+          Имя и фамилия
+        </label>
+        <Input id="student_full_name" name="full_name" placeholder="Как вас будут видеть преподаватели" required />
+      </div>
       <div className="grid gap-2">
         <label className="text-sm font-bold text-[#131525]" htmlFor="student_goal">
           Цель обучения
@@ -82,11 +88,21 @@ function StudentFields() {
       </div>
       <div className="grid gap-2">
         <label className="text-sm font-bold text-[#131525]" htmlFor="student_notes">
-          Комментарий для преподавателя
+          О себе
         </label>
-        <Textarea id="student_notes" name="student_notes" placeholder="Что важно знать перед первым уроком" />
+        <Textarea id="student_notes" name="student_notes" placeholder="Что важно знать преподавателю перед первым уроком" />
       </div>
-    </div>
+      <div className="grid gap-2">
+        <label className="text-sm font-bold text-[#131525]" htmlFor="student_timezone">
+          Часовой пояс
+        </label>
+        <Input id="student_timezone" name="timezone" placeholder="Europe/Moscow" />
+      </div>
+      <Button className="w-fit rounded-full bg-[#675cff] hover:bg-[#5b50f0]">
+        <Save className="h-4 w-4" />
+        Сохранить профиль
+      </Button>
+    </form>
   );
 }
 

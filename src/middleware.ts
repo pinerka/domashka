@@ -8,6 +8,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next({ request });
   }
 
+  const publicRoutes = ["/login", "/register", "/forgot-password"];
+  const isPublicRoute = publicRoutes.some((route) => request.nextUrl.pathname.startsWith(route));
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -27,7 +29,24 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  await supabase.auth.getUser();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user && !isPublicRoute) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    redirectUrl.searchParams.set("next", request.nextUrl.pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (user && isPublicRoute) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/";
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
+  }
+
   return response;
 }
 
