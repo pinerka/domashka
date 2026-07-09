@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { href: "/", label: "Уроки", icon: Grid2X2 },
   { href: "/teachers", label: "Преподаватели", icon: Users },
+  { href: "/students", label: "Ученики", icon: User },
   { href: "/courses", label: "Методичка", icon: BookOpen },
   { href: "/profile", label: "Профиль", icon: User }
 ];

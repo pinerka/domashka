@@ -5,27 +5,70 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cancelBookingAction, completeLessonAction, confirmBookingAction } from "@/features/bookings/actions";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const bookings = [
-  {
-    id: "booking-demo-1",
-    lessonId: "lesson-demo-1",
-    student: "Никита Орлов",
-    title: "IELTS Speaking: Part 2",
-    time: "Сегодня, 19:00",
-    status: "pending"
-  },
-  {
-    id: "booking-demo-2",
-    lessonId: "lesson-demo-2",
-    student: "Алина Смирнова",
-    title: "Mock interview",
-    time: "Завтра, 17:30",
-    status: "confirmed"
+export const dynamic = "force-dynamic";
+
+type BookingRow = {
+  id: string;
+  starts_at: string;
+  status: "pending" | "confirmed" | "cancelled" | "completed";
+  profiles: {
+    full_name: string;
+  } | {
+    full_name: string;
+  }[] | null;
+  lessons: {
+    id: string;
+    title: string;
+  }[];
+};
+
+function firstRelation<T>(relation: T | T[] | null) {
+  return Array.isArray(relation) ? relation[0] : relation;
+}
+
+async function getTeacherBookings() {
+  if (!isSupabaseConfigured()) {
+    return [];
   }
-];
 
-export default function TeacherBookingsPage() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return [];
+  }
+
+  const { data: teacherProfile } = await supabase.from("teacher_profiles").select("id").eq("user_id", user.id).maybeSingle();
+
+  if (!teacherProfile) {
+    return [];
+  }
+
+  const { data } = await supabase
+    .from("bookings")
+    .select(
+      `
+        id,
+        starts_at,
+        status,
+        profiles:profiles!bookings_student_id_fkey(full_name),
+        lessons(id, title)
+      `
+    )
+    .eq("teacher_id", teacherProfile.id)
+    .order("starts_at", { ascending: true });
+
+  return (data ?? []) as unknown as BookingRow[];
+}
+
+export default async function TeacherBookingsPage() {
+  const bookings = await getTeacherBookings();
+
   return (
     <AppShell>
       <main className="container py-10">
@@ -42,14 +85,20 @@ export default function TeacherBookingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {bookings.map((booking) => (
+            {bookings.length > 0 ? bookings.map((booking) => {
+              const lesson = booking.lessons[0];
+              const student = firstRelation(booking.profiles);
+
+              return (
               <div key={booking.id} className="grid gap-4 rounded-lg border p-4 lg:grid-cols-[1fr_auto] lg:items-center">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium">{booking.title}</p>
+                    <p className="font-medium">{lesson?.title ?? "Занятие"}</p>
                     <Badge>{booking.status}</Badge>
                   </div>
-                  <p className="mt-1 text-sm text-slate-500">{booking.student} · {booking.time}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {student?.full_name ?? "Ученик"} · {new Date(booking.starts_at).toLocaleString("ru-RU")}
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {booking.status === "pending" ? (
@@ -62,7 +111,7 @@ export default function TeacherBookingsPage() {
                     </form>
                   ) : (
                     <Button asChild size="sm">
-                      <Link href="/lesson/demo">
+                      <Link href={lesson ? `/lesson/${lesson.id}` : "/teacher/bookings"}>
                         <Clock className="h-4 w-4" />
                         Открыть урок
                       </Link>
@@ -70,7 +119,7 @@ export default function TeacherBookingsPage() {
                   )}
                   <form action={completeLessonAction}>
                     <input type="hidden" name="booking_id" value={booking.id} />
-                    <input type="hidden" name="lesson_id" value={booking.lessonId} />
+                    <input type="hidden" name="lesson_id" value={lesson?.id ?? ""} />
                     <Button variant="outline" size="sm">Завершить</Button>
                   </form>
                   <form action={cancelBookingAction}>
@@ -83,7 +132,13 @@ export default function TeacherBookingsPage() {
                   </form>
                 </div>
               </div>
-            ))}
+              );
+            }) : (
+              <div className="rounded-lg border border-dashed p-6 text-center">
+                <p className="font-medium text-slate-900">Заявок пока нет</p>
+                <p className="mt-1 text-sm text-slate-500">Здесь появятся реальные бронирования учеников.</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>

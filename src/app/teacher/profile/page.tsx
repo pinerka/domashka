@@ -27,43 +27,38 @@ export default function TeacherProfileEditorPage() {
               <form action={saveTeacherProfileAction} className="grid gap-4">
                 <div className="grid gap-2">
                   <label className="text-sm font-medium" htmlFor="full_name">Имя</label>
-                  <Input id="full_name" name="full_name" defaultValue="Анна Морозова" />
+                  <Input id="full_name" name="full_name" placeholder="Как вас будут видеть ученики" />
                 </div>
                 <div className="grid gap-2">
                   <label className="text-sm font-medium" htmlFor="slug">Публичный slug</label>
-                  <Input id="slug" name="slug" defaultValue="anna-morozova" />
+                  <Input id="slug" name="slug" placeholder="your-public-link" />
                 </div>
                 <div className="grid gap-2">
                   <label className="text-sm font-medium" htmlFor="headline">Заголовок</label>
-                  <Input id="headline" name="headline" defaultValue="IELTS и разговорный английский для карьеры" />
+                  <Input id="headline" name="headline" placeholder="Кратко о специализации" />
                 </div>
                 <div className="grid gap-2">
                   <label className="text-sm font-medium" htmlFor="description">Описание</label>
-                  <Textarea
-                    id="description"
-                    name="description"
-                    defaultValue="Помогаю взрослым студентам уверенно проходить интервью, выступать на митингах и сдавать IELTS без хаоса в подготовке."
-                  />
+                  <Textarea id="description" name="description" placeholder="Расскажите об опыте, формате занятий и результатах учеников" />
                 </div>
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="grid gap-2">
                     <label className="text-sm font-medium" htmlFor="hourly_rate">Цена за час</label>
-                    <Input id="hourly_rate" name="hourly_rate" type="number" defaultValue="3200" />
+                    <Input id="hourly_rate" name="hourly_rate" type="number" placeholder="0" />
                   </div>
                   <div className="grid gap-2">
                     <label className="text-sm font-medium" htmlFor="experience_years">Опыт, лет</label>
-                    <Input id="experience_years" name="experience_years" type="number" defaultValue="9" />
+                    <Input id="experience_years" name="experience_years" type="number" placeholder="0" />
                   </div>
                   <div className="grid gap-2">
                     <label className="text-sm font-medium" htmlFor="timezone">Часовой пояс</label>
-                    <Input id="timezone" name="timezone" defaultValue="Europe/Moscow" />
+                    <Input id="timezone" name="timezone" placeholder="Europe/Moscow" />
                   </div>
                 </div>
                 <div className="grid gap-2">
                   <label className="text-sm font-medium" htmlFor="intro_video_url">Видео-визитка</label>
                   <Input id="intro_video_url" name="intro_video_url" placeholder="https://..." />
                 </div>
-                <input type="hidden" name="bio" value="Профессиональный преподаватель LearnSpace" />
                 <Button className="w-fit">
                   <Save className="h-4 w-4" />
                   Сохранить профиль

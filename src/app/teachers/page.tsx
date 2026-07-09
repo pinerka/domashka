@@ -6,9 +6,69 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { teachers } from "@/lib/mock-data";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default function TeachersPage() {
+export const dynamic = "force-dynamic";
+
+type TeacherRow = {
+  id: string;
+  slug: string;
+  headline: string;
+  description: string | null;
+  hourly_rate: number | string;
+  experience_years: number;
+  rating_avg: number | string;
+  rating_count: number;
+  profiles: {
+    full_name: string;
+    avatar_url: string | null;
+  } | {
+    full_name: string;
+    avatar_url: string | null;
+  }[] | null;
+  teacher_subjects: {
+    subjects: {
+      name: string;
+    } | null;
+  }[];
+};
+
+function firstRelation<T>(relation: T | T[] | null) {
+  return Array.isArray(relation) ? relation[0] : relation;
+}
+
+async function getTeachers() {
+  if (!isSupabaseConfigured()) {
+    return [];
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from("teacher_profiles")
+    .select(
+      `
+        id,
+        slug,
+        headline,
+        description,
+        hourly_rate,
+        experience_years,
+        rating_avg,
+        rating_count,
+        profiles:profiles!teacher_profiles_user_id_fkey(full_name, avatar_url),
+        teacher_subjects(subjects(name))
+      `
+    )
+    .eq("status", "approved")
+    .order("created_at", { ascending: false });
+
+  return (data ?? []) as unknown as TeacherRow[];
+}
+
+export default async function TeachersPage() {
+  const teachers = await getTeachers();
+
   return (
     <AppShell>
       <main className="mx-auto min-h-[calc(100vh-5rem)] w-full max-w-[1280px] px-6 py-12">
@@ -25,44 +85,50 @@ export default function TeachersPage() {
 
         {teachers.length > 0 ? (
           <div className="mt-8 grid gap-4 lg:grid-cols-3">
-            {teachers.map((teacher) => (
-            <Card key={teacher.id} className="rounded-[1.35rem] border-[#e3e4ef] shadow-[0_3px_10px_rgba(17,24,39,0.06)]">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-16 w-16">
-                      {teacher.avatar ? <AvatarImage src={teacher.avatar} alt={teacher.name} /> : null}
-                      <AvatarFallback>{teacher.name.slice(0, 2)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-lg font-black text-[#131525]">{teacher.name}</h2>
-                        {teacher.verified ? <CheckCircle2 className="h-4 w-4 text-[#675cff]" /> : null}
+            {teachers.map((teacher) => {
+              const profile = firstRelation(teacher.profiles);
+
+              return (
+                <Card key={teacher.id} className="rounded-[1.35rem] border-[#e3e4ef] shadow-[0_3px_10px_rgba(17,24,39,0.06)]">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-16 w-16">
+                          {profile?.avatar_url ? <AvatarImage src={profile.avatar_url} alt={profile.full_name} /> : null}
+                          <AvatarFallback>{(profile?.full_name ?? "П").slice(0, 2)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-lg font-black text-[#131525]">{profile?.full_name ?? "Преподаватель"}</h2>
+                            <CheckCircle2 className="h-4 w-4 text-[#675cff]" />
+                          </div>
+                          <p className="text-sm text-slate-500">{teacher.experience_years} лет опыта</p>
+                        </div>
                       </div>
-                      <p className="text-sm text-slate-500">{teacher.experience}</p>
+                      <span className="flex items-center gap-1 text-sm font-bold">
+                        <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                        {Number(teacher.rating_avg) > 0 ? Number(teacher.rating_avg).toFixed(1) : "новый"}
+                      </span>
                     </div>
-                  </div>
-                  <span className="flex items-center gap-1 text-sm font-bold">
-                    <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                    {teacher.rating > 0 ? teacher.rating.toFixed(1) : "новый"}
-                  </span>
-                </div>
-                <p className="mt-5 font-semibold text-[#131525]">{teacher.headline}</p>
-                <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{teacher.bio}</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {teacher.subjects.map((subject) => (
-                    <Badge key={subject} className="border-[#deddf1] bg-[#fbfbff]">{subject}</Badge>
-                  ))}
-                </div>
-                <div className="mt-6 flex items-center justify-between border-t border-[#ececf4] pt-5">
-                  <p className="font-black">{teacher.price > 0 ? `${teacher.price.toLocaleString("ru-RU")} ₽ / час` : "Цена не указана"}</p>
-                  <Button asChild className="rounded-full bg-[#675cff] hover:bg-[#5b50f0]">
-                    <Link href={`/teachers/${teacher.id}`}>Профиль</Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-            ))}
+                    <p className="mt-5 font-semibold text-[#131525]">{teacher.headline}</p>
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{teacher.description}</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {teacher.teacher_subjects.map(({ subjects }) => subjects?.name).filter(Boolean).map((subject) => (
+                        <Badge key={subject} className="border-[#deddf1] bg-[#fbfbff]">{subject}</Badge>
+                      ))}
+                    </div>
+                    <div className="mt-6 flex items-center justify-between border-t border-[#ececf4] pt-5">
+                      <p className="font-black">
+                        {Number(teacher.hourly_rate) > 0 ? `${Number(teacher.hourly_rate).toLocaleString("ru-RU")} ₽ / час` : "Цена не указана"}
+                      </p>
+                      <Button asChild className="rounded-full bg-[#675cff] hover:bg-[#5b50f0]">
+                        <Link href={`/teachers/${teacher.slug}`}>Профиль</Link>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         ) : (
           <div className="mt-8 rounded-[1.35rem] border border-[#e3e4ef] bg-white p-8 text-center shadow-[0_3px_10px_rgba(17,24,39,0.06)]">

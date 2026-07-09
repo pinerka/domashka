@@ -31,15 +31,8 @@ supabase db push
 supabase db reset
 ```
 
-Seed demo data:
+Seed base data:
 
 ```bash
 supabase db reset --local
 ```
-
-Demo accounts in local Supabase:
-
-- `student@learnspace.dev` / `password123`
-- `teacher@learnspace.dev` / `password123`
-- `author@learnspace.dev` / `password123`
-- `admin@learnspace.dev` / `password123`
