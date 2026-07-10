@@ -20,6 +20,12 @@ function buildLessonDate(date: string, time: string) {
   };
 }
 
+function buildFallbackRoomUrl(lessonId: string) {
+  const roomName = `learnspace-${lessonId}`.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+
+  return `https://meet.jit.si/${roomName}#config.prejoinPageEnabled=false`;
+}
+
 export async function createLessonAction(formData: FormData) {
   const title = value(formData, "title") || "Новый урок";
   const date = value(formData, "date");
@@ -39,7 +45,7 @@ export async function createLessonAction(formData: FormData) {
     title,
     startsAt,
     endsAt,
-    roomUrl: room?.roomUrl ?? "",
+    roomUrl: room?.roomUrl ?? buildFallbackRoomUrl(lessonId),
     teacherName: "Pinerov Volodya",
     studentName: "Владимир"
   };
