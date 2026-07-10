@@ -99,7 +99,7 @@ function isValidVideoRoomUrl(roomUrl?: string) {
 
   try {
     const url = new URL(roomUrl);
-    return url.protocol === "https:" && (url.hostname.endsWith(".daily.co") || url.hostname === "meet.jit.si");
+    return url.protocol === "https:" && url.hostname.endsWith(".daily.co");
   } catch {
     return false;
   }
