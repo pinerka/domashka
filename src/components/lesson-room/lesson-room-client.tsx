@@ -14,11 +14,8 @@ import {
   FileUp,
   Grid2X2,
   Hand,
-  LogOut,
   MessageSquare,
-  Mic,
   Minus,
-  MoreHorizontal,
   MousePointer2,
   Pencil,
   Plus,
@@ -34,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Tool = "draw" | "erase" | "hand" | "text" | "zoom";
-type UserRole = "student" | "teacher";
+type UserRole = "student" | "teacher" | "guest";
 type Point = { x: number; y: number };
 type Stroke = { id: string; color: string; width: number; points: Point[] };
 type TextItem = { id: string; x: number; y: number; value: string };
@@ -199,6 +196,8 @@ export function LessonRoomClient({
   const viewSyncFrameRef = useRef<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
+  const [guestName, setGuestName] = useState("");
+  const [guestNameDraft, setGuestNameDraft] = useState("");
   const [tool, setTool] = useState<Tool>("draw");
   const [color, setColor] = useState(colors[0]);
   const [width, setWidth] = useState(8);
@@ -211,6 +210,8 @@ export function LessonRoomClient({
   const [boardPan, setBoardPan] = useState<BoardPan | null>(null);
   const [boardZoom, setBoardZoom] = useState(1);
   const isTeacher = userRole === "teacher";
+  const isGuest = userRole === "guest";
+  const displayParticipantName = isGuest ? guestName || "Гость" : "Владимир";
   const hasVideoRoom = isValidVideoRoomUrl(roomUrl);
   const boardZoomRef = useRef(boardZoom);
   const strokesRef = useRef(strokes);
@@ -234,7 +235,10 @@ export function LessonRoomClient({
   }, [files]);
 
   useEffect(() => {
-    setInviteUrl(window.location.href);
+    const url = new URL(window.location.href);
+    url.searchParams.set("guest", "1");
+    url.searchParams.delete("name");
+    setInviteUrl(url.toString());
   }, []);
 
   useEffect(() => {
@@ -562,6 +566,16 @@ export function LessonRoomClient({
     setCopied(true);
   }
 
+  function saveGuestName() {
+    const nextName = guestNameDraft.trim();
+
+    if (!nextName) {
+      return;
+    }
+
+    setGuestName(nextName);
+  }
+
   function startPointer(event: PointerEvent) {
     if (isTeacher && tool === "zoom" && event.pointerType === "touch") {
       touchPointersRef.current.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
@@ -794,6 +808,30 @@ export function LessonRoomClient({
 
   return (
     <main className="h-screen overflow-hidden bg-white text-[#090d21]">
+      {isGuest && !guestName ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#090d21]/45 px-5 backdrop-blur-sm">
+          <form
+            className="w-full max-w-sm rounded-2xl border border-[#e3e6f3] bg-white p-6 shadow-[0_24px_70px_rgba(18,24,48,0.22)]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveGuestName();
+            }}
+          >
+            <h1 className="text-2xl font-black text-[#111426]">Как вас зовут?</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Введите имя, чтобы подключиться к уроку.</p>
+            <input
+              autoFocus
+              className="mt-5 h-12 w-full rounded-xl border border-[#dfe1ee] px-4 text-base font-semibold outline-none focus:border-[#675cff]"
+              value={guestNameDraft}
+              onChange={(event) => setGuestNameDraft(event.target.value)}
+              placeholder="Имя"
+            />
+            <Button className="mt-5 h-12 w-full rounded-xl bg-[#675cff] font-black hover:bg-[#5b50f0]">
+              Подключиться
+            </Button>
+          </form>
+        </div>
+      ) : null}
       <Button asChild variant="outline" className="fixed left-6 top-6 z-[70] h-11 rounded-full border-[#deddf1] bg-white/95 px-5 font-bold shadow-sm backdrop-blur">
         <Link href="/">
           <ArrowLeft className="h-4 w-4" />
@@ -883,7 +921,7 @@ export function LessonRoomClient({
               >
               <div className="sticky left-0 top-0 z-40 h-0 w-0 pointer-events-none">
                 <div
-                  className="absolute left-28 top-7 w-[390px] rounded-[1.35rem] border border-[#e5e7f4] bg-white p-3 shadow-[0_18px_45px_rgba(18,24,48,0.14)] pointer-events-auto"
+                  className="absolute left-28 top-7 w-[330px] rounded-[1.1rem] border border-[#e5e7f4] bg-white p-2.5 shadow-[0_18px_45px_rgba(18,24,48,0.14)] pointer-events-auto"
                   onPointerDown={(event) => event.stopPropagation()}
                 >
                   <div className="mb-3 flex items-center justify-between px-2">
@@ -893,11 +931,17 @@ export function LessonRoomClient({
                         <span className="h-2.5 w-1 rounded-full bg-current" />
                         <span className="h-4 w-1 rounded-full bg-current" />
                       </span>
-                      Владимир
+                      {displayParticipantName}
                     </div>
-                    <MoreHorizontal className="h-5 w-5 text-[#616a86]" />
+                    <button
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#e5e7f4] px-2.5 text-xs font-black text-[#31384f] transition hover:bg-[#f6f5ff]"
+                      onClick={copyInvite}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {copied ? "Скопировано" : "Поделиться"}
+                    </button>
                   </div>
-                  <div className="relative h-[210px] overflow-hidden rounded-xl bg-[#2e2e2f] text-white">
+                  <div className="relative h-[170px] overflow-hidden rounded-xl bg-[#2e2e2f] text-white">
                     {hasVideoRoom ? (
                       <iframe
                         title="Daily video room"
@@ -912,28 +956,6 @@ export function LessonRoomClient({
                         <span className="absolute bottom-3 left-3 rounded-md bg-black/50 px-3 py-1 text-sm font-bold">Вы</span>
                       </div>
                     )}
-                  </div>
-                  <div className="mt-3 grid grid-cols-5 gap-2">
-                    <button className="rounded-xl border border-[#eef0f7] bg-white py-3 text-xs font-bold text-[#182036]">
-                      <Mic className="mx-auto mb-1 h-5 w-5 text-emerald-500" />
-                      Микрофон
-                    </button>
-                    <button className="rounded-xl border border-[#eef0f7] bg-white py-3 text-xs font-bold text-[#182036]">
-                      <Camera className="mx-auto mb-1 h-5 w-5 text-emerald-500" />
-                      Камера
-                    </button>
-                    <button className="rounded-xl border border-[#eef0f7] bg-white py-3 text-xs font-bold text-[#182036]">
-                      <MessageSquare className="mx-auto mb-1 h-5 w-5 text-[#303854]" />
-                      Чат
-                    </button>
-                    <button className="rounded-xl border border-[#eef0f7] bg-white py-3 text-xs font-bold text-[#182036]">
-                      <Users className="mx-auto mb-1 h-5 w-5 text-[#303854]" />
-                      Люди
-                    </button>
-                    <button className="rounded-xl border border-[#fff0f0] bg-white py-3 text-xs font-bold text-[#ef4444]">
-                      <LogOut className="mx-auto mb-1 h-5 w-5" />
-                      Выйти
-                    </button>
                   </div>
                 </div>
               </div>

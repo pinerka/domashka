@@ -10,6 +10,7 @@ export async function middleware(request: NextRequest) {
 
   const publicRoutes = ["/login", "/register", "/forgot-password"];
   const isPublicRoute = publicRoutes.some((route) => request.nextUrl.pathname.startsWith(route));
+  const isGuestLessonRoom = request.nextUrl.pathname.startsWith("/lesson/") && request.nextUrl.pathname.endsWith("/room") && request.nextUrl.searchParams.get("guest") === "1";
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -33,7 +34,7 @@ export async function middleware(request: NextRequest) {
     data: { user }
   } = await supabase.auth.getUser();
 
-  if (!user && !isPublicRoute) {
+  if (!user && !isPublicRoute && !isGuestLessonRoom) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("next", request.nextUrl.pathname);

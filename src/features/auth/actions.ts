@@ -33,7 +33,7 @@ async function ensureTeacherProfile(user: { id: string; email?: string | null },
   const displayName = fullName?.trim() || user.email?.split("@")[0] || "Преподаватель";
   const baseSlug = slugify(displayName) || `teacher-${user.id.slice(0, 8)}`;
 
-  await supabase.from("teacher_profiles").upsert(
+  const { error } = await supabase.from("teacher_profiles").upsert(
     {
       user_id: user.id,
       slug: `${baseSlug}-${user.id.slice(0, 8)}`,
@@ -46,6 +46,10 @@ async function ensureTeacherProfile(user: { id: string; email?: string | null },
     },
     { onConflict: "user_id" }
   );
+
+  if (error) {
+    throw error;
+  }
 }
 
 export async function signInAction(formData: FormData) {
@@ -116,7 +120,11 @@ export async function signUpAction(formData: FormData) {
     }
 
     if (role === "teacher") {
-      await ensureTeacherProfile(data.user, fullName);
+      try {
+        await ensureTeacherProfile(data.user, fullName);
+      } catch (error) {
+        redirect(`/register?error=${encodeURIComponent(error instanceof Error ? error.message : "Не удалось создать профиль преподавателя")}`);
+      }
     }
   }
 
@@ -154,9 +162,15 @@ export async function updateRoleAction(formData: FormData) {
   }
 
   if (role === "teacher") {
-    await ensureTeacherProfile(user, user.user_metadata?.full_name);
+    try {
+      await ensureTeacherProfile(user, user.user_metadata?.full_name);
+    } catch (error) {
+      redirect(`/profile?role=teacher&error=${encodeURIComponent(error instanceof Error ? error.message : "Не удалось создать профиль преподавателя")}`);
+    }
   }
 
+  revalidatePath("/teachers");
+  revalidatePath("/profile");
   redirect(`/profile?role=${role}&saved=role`);
 }
 
