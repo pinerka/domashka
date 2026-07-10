@@ -907,8 +907,8 @@ export function LessonRoomClient({
                       />
                     ) : (
                       <div className="flex h-full flex-col justify-center p-8">
-                        <p className="text-center text-base font-bold text-slate-200">Видеокомната не создана</p>
-                        <p className="mt-2 text-center text-xs leading-5 text-slate-400">Проверьте Daily в Vercel и создайте новый урок.</p>
+                        <p className="text-center text-base font-bold text-slate-200">Видео временно не подключено</p>
+                        <p className="mt-2 text-center text-xs leading-5 text-slate-400">Урок создан, можно пользоваться доской и материалами.</p>
                         <span className="absolute bottom-3 left-3 rounded-md bg-black/50 px-3 py-1 text-sm font-bold">Вы</span>
                       </div>
                     )}

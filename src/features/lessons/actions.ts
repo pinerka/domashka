@@ -34,16 +34,12 @@ export async function createLessonAction(formData: FormData) {
     endsAt
   }).catch(() => null);
 
-  if (!room) {
-    redirect("/lessons/new?error=video");
-  }
-
   const lesson: PlannedLesson = {
     id: lessonId,
     title,
     startsAt,
     endsAt,
-    roomUrl: room.roomUrl,
+    roomUrl: room?.roomUrl ?? "",
     teacherName: "Pinerov Volodya",
     studentName: "Владимир"
   };
