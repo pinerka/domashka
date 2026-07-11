@@ -240,6 +240,33 @@ export async function signOutAction() {
   redirect("/");
 }
 
+export async function deleteAccountAction() {
+  if (!isSupabaseConfigured()) {
+    redirect("/login");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { error } = await supabase.rpc("delete_own_account");
+
+  if (error) {
+    redirect(`/profile?deleteError=${encodeURIComponent(error.message)}`);
+  }
+
+  await supabase.auth.signOut();
+  const cookieStore = await cookies();
+  cookieStore.delete("learnspace_role");
+  cookieStore.delete("learnspace_lessons");
+  redirect(`/login?notice=${encodeURIComponent("Аккаунт полностью удалён. Для входа зарегистрируйтесь заново.")}`);
+}
+
 export async function resetPasswordAction(formData: FormData) {
   if (!isSupabaseConfigured()) {
     redirect("/forgot-password?demo=auth");

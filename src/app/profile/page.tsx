@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { AppShell } from "@/components/site/app-shell";
 import { ProfileSettings, type ProfileFormValues } from "@/components/profile/profile-settings";
+import { DeleteAccount } from "@/components/profile/delete-account";
 import { getSavedUserRole } from "@/features/auth/queries";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -48,7 +49,7 @@ async function getProfileValues(): Promise<ProfileFormValues> {
 export default async function ProfilePage({
   searchParams
 }: {
-  searchParams: Promise<{ role?: string; demo?: string }>;
+  searchParams: Promise<{ role?: string; demo?: string; deleteError?: string }>;
 }) {
   const params = await searchParams;
   const cookieStore = await cookies();
@@ -65,6 +66,7 @@ export default async function ProfilePage({
         </header>
 
         <ProfileSettings initialRole={currentRole} values={values} />
+        <DeleteAccount error={params.deleteError} />
       </main>
     </AppShell>
   );
