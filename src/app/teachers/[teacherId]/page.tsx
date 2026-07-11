@@ -9,6 +9,8 @@ import { createBookingAction } from "@/features/bookings/actions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 type TeacherProfile = {
   id: string;
   slug: string;
@@ -51,30 +53,47 @@ async function getTeacherProfile(slug: string) {
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
+  const selectTeacherProfile = `
+    id,
+    slug,
+    headline,
+    description,
+    hourly_rate,
+    experience_years,
+    intro_video_url,
+    rating_avg,
+    rating_count,
+    profiles:profiles!teacher_profiles_user_id_fkey(full_name, avatar_url),
+    teacher_subjects(subjects(name)),
+    teacher_documents(title),
+    teacher_availability_rules(weekday, start_time, end_time)
+  `;
+
+  const { data, error } = await supabase
     .from("teacher_profiles")
-    .select(
-      `
-        id,
-        slug,
-        headline,
-        description,
-        hourly_rate,
-        experience_years,
-        intro_video_url,
-        rating_avg,
-        rating_count,
-        profiles:profiles!teacher_profiles_user_id_fkey(full_name, avatar_url),
-        teacher_subjects(subjects(name)),
-        teacher_documents(title),
-        teacher_availability_rules(weekday, start_time, end_time)
-      `
-    )
+    .select(selectTeacherProfile)
     .eq("slug", slug)
     .eq("status", "approved")
     .maybeSingle();
 
-  return data as TeacherProfile | null;
+  if (error) {
+    return null;
+  }
+
+  if (!data) {
+    const { data: fallbackData } = await supabase
+      .from("teacher_profiles")
+      .select(selectTeacherProfile)
+      .ilike("slug", `${slug}-%`)
+      .eq("status", "approved")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return fallbackData as unknown as TeacherProfile | null;
+  }
+
+  return data as unknown as TeacherProfile | null;
 }
 
 function toNextSlot(rule: TeacherProfile["teacher_availability_rules"][number]) {
