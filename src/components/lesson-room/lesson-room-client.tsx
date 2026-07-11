@@ -1034,7 +1034,7 @@ export function LessonRoomClient({
             </div>
 
             <div
-              className="sticky bottom-6 left-1/2 z-50 flex w-fit -translate-x-1/2 items-center gap-5 rounded-[1.35rem] border border-[#e3e6f3] bg-white/96 px-4 py-3 shadow-[0_18px_45px_rgba(18,24,48,0.12)] backdrop-blur"
+              className="fixed bottom-6 left-1/2 z-50 flex w-fit max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-5 overflow-x-auto rounded-[1.35rem] border border-[#e3e6f3] bg-white/96 px-4 py-3 shadow-[0_18px_45px_rgba(18,24,48,0.12)] backdrop-blur"
               onPointerDown={(event) => event.stopPropagation()}
             >
               <button className="grid h-10 w-10 place-items-center rounded-full border border-[#e5e7f4] text-[#9aa1b7]">
@@ -1083,7 +1083,7 @@ export function LessonRoomClient({
 
             {isTeacher ? (
               <div
-                className="sticky bottom-6 left-[calc(100%-180px)] z-50 ml-auto mr-8 flex w-fit items-center gap-5 rounded-[1.35rem] border border-[#e3e6f3] bg-white/96 px-4 py-3 text-base font-black shadow-[0_18px_45px_rgba(18,24,48,0.12)] backdrop-blur"
+                className="fixed bottom-6 right-6 z-50 flex w-fit items-center gap-5 rounded-[1.35rem] border border-[#e3e6f3] bg-white/96 px-4 py-3 text-base font-black shadow-[0_18px_45px_rgba(18,24,48,0.12)] backdrop-blur"
                 onPointerDown={(event) => event.stopPropagation()}
               >
                 <button
