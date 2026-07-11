@@ -19,6 +19,9 @@ export default function TeacherDashboardPage() {
             <Button asChild variant="outline">
               <Link href="/teacher/profile">Редактировать профиль</Link>
             </Button>
+            <Button asChild variant="outline">
+              <Link href="/teacher/students">Мои ученики</Link>
+            </Button>
             <Button asChild>
               <Link href="/teacher/bookings">Бронирования</Link>
             </Button>

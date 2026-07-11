@@ -1,9 +1,11 @@
-import { Search, UserRound } from "lucide-react";
+import { Search, UserPlus, UserRound } from "lucide-react";
 import { AppShell } from "@/components/site/app-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { addStudentToTeacherAction } from "@/features/teacher-students/actions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -18,13 +20,21 @@ type StudentRow = {
   created_at: string;
 };
 
-async function getStudents() {
+async function getStudentsData() {
   if (!isSupabaseConfigured()) {
-    return [];
+    return {
+      students: [],
+      teacherProfileId: null,
+      linkedStudentIds: new Set<string>()
+    };
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  const { data: students } = await supabase
     .from("profiles")
     .select(
       `
@@ -40,11 +50,28 @@ async function getStudents() {
     .eq("user_roles.role", "student")
     .order("created_at", { ascending: false });
 
-  return (data ?? []) as unknown as StudentRow[];
+  let teacherProfileId: string | null = null;
+  const linkedStudentIds = new Set<string>();
+
+  if (user) {
+    const { data: teacherProfile } = await supabase.from("teacher_profiles").select("id").eq("user_id", user.id).maybeSingle();
+    teacherProfileId = teacherProfile?.id ?? null;
+
+    if (teacherProfileId) {
+      const { data: links } = await supabase.from("teacher_students").select("student_id").eq("teacher_id", teacherProfileId).eq("status", "active");
+      (links ?? []).forEach((link) => linkedStudentIds.add(link.student_id));
+    }
+  }
+
+  return {
+    students: (students ?? []) as unknown as StudentRow[],
+    teacherProfileId,
+    linkedStudentIds
+  };
 }
 
 export default async function StudentsPage() {
-  const students = await getStudents();
+  const { students, teacherProfileId, linkedStudentIds } = await getStudentsData();
 
   return (
     <AppShell>
@@ -79,8 +106,23 @@ export default async function StudentsPage() {
                     </div>
                   </div>
                   {student.bio ? <p className="mt-5 line-clamp-3 text-sm leading-6 text-slate-500">{student.bio}</p> : null}
-                  <div className="mt-6 border-t border-[#ececf4] pt-5 text-sm font-semibold text-slate-500">
-                    Зарегистрирован: {new Date(student.created_at).toLocaleDateString("ru-RU")}
+                  <div className="mt-6 flex flex-col gap-3 border-t border-[#ececf4] pt-5">
+                    <p className="text-sm font-semibold text-slate-500">
+                      Зарегистрирован: {new Date(student.created_at).toLocaleDateString("ru-RU")}
+                    </p>
+                    {teacherProfileId ? (
+                      linkedStudentIds.has(student.id) ? (
+                        <Badge className="w-fit border-[#deddf1] bg-[#fbfbff]">В моих учениках</Badge>
+                      ) : (
+                        <form action={addStudentToTeacherAction}>
+                          <input type="hidden" name="student_id" value={student.id} />
+                          <Button className="w-full rounded-full bg-[#675cff] hover:bg-[#5b50f0]">
+                            <UserPlus className="h-4 w-4" />
+                            Добавить в мои ученики
+                          </Button>
+                        </form>
+                      )
+                    ) : null}
                   </div>
                 </CardContent>
               </Card>
