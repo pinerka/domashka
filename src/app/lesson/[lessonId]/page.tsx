@@ -10,10 +10,11 @@ export default async function LessonPage({
   searchParams
 }: {
   params: Promise<{ lessonId: string }>;
-  searchParams: Promise<Partial<PlannedLesson>>;
+  searchParams: Promise<Partial<PlannedLesson> & { deleteError?: string }>;
 }) {
   const { lessonId } = await params;
   const query = await searchParams;
+  const deleteError = typeof query.deleteError === "string" ? query.deleteError : undefined;
   const lesson: PlannedLesson = {
     id: lessonId,
     title: query.title ?? "Урок",
@@ -40,6 +41,11 @@ export default async function LessonPage({
         </Link>
       </Button>
       <div className="mx-auto max-w-[1120px]">
+        {deleteError ? (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 font-medium text-red-700">
+            Не удалось удалить урок: {deleteError}
+          </div>
+        ) : null}
         <div className="flex items-center gap-10">
           <div className="flex items-center gap-4">
             <div className="h-16 w-16 rounded-full bg-[url('https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=160&q=80')] bg-cover" />

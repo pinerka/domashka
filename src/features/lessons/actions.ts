@@ -1,9 +1,12 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createDailyRoom } from "@/features/video/daily";
 import { encodeLessonParams, type PlannedLesson } from "@/features/lessons/types";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 function value(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -60,6 +63,24 @@ export async function createLessonAction(formData: FormData) {
 
 export async function deleteLessonAction(formData: FormData) {
   const lessonId = value(formData, "lesson_id");
+
+  if (isSupabaseConfigured()) {
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      redirect("/login");
+    }
+
+    const { error } = await supabase.from("lessons").delete().eq("id", lessonId);
+
+    if (error) {
+      redirect(`/lesson/${lessonId}?deleteError=${encodeURIComponent(error.message)}`);
+    }
+  }
+
   const cookieStore = await cookies();
   const existingRaw = cookieStore.get("learnspace_lessons")?.value;
   const existingLessons = existingRaw ? (JSON.parse(existingRaw) as PlannedLesson[]) : [];
@@ -71,5 +92,7 @@ export async function deleteLessonAction(formData: FormData) {
     maxAge: 60 * 60 * 24 * 365
   });
 
+  revalidatePath("/");
+  revalidatePath("/student");
   redirect("/");
 }
