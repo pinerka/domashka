@@ -935,8 +935,8 @@ export function LessonRoomClient({
                     <button className={toolButtonClass} aria-label="Фигуры">
                       <Shapes className="h-5 w-5" />
                     </button>
-                    <button className={toolButtonClass} onClick={() => fileInputRef.current?.click()} aria-label="Добавить файл">
-                      <Plus className="h-5 w-5" />
+                    <button className={toolButtonClass} onClick={() => fileInputRef.current?.click()} aria-label="Добавить PDF или фото" title="Добавить PDF или фото">
+                      <FileUp className="h-5 w-5" />
                     </button>
                   </>
                 ) : null}

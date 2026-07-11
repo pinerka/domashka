@@ -42,10 +42,13 @@ function firstRelation<T>(relation: T | T[] | null) {
 
 async function getTeachers() {
   if (!isSupabaseConfigured()) {
-    return [];
+    return { teachers: [], myTeacherIds: new Set<string>() };
   }
 
   const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
   const { data } = await supabase
     .from("teacher_profiles")
     .select(
@@ -70,11 +73,23 @@ async function getTeachers() {
     .eq("status", "approved")
     .order("created_at", { ascending: false });
 
-  return (data ?? []) as unknown as TeacherRow[];
+  const myTeacherIds = new Set<string>();
+
+  if (user) {
+    const { data: links } = await supabase
+      .from("teacher_students")
+      .select("teacher_id")
+      .eq("student_id", user.id)
+      .eq("status", "active");
+    (links ?? []).forEach((link) => myTeacherIds.add(link.teacher_id));
+  }
+
+  return { teachers: (data ?? []) as unknown as TeacherRow[], myTeacherIds };
 }
 
 export default async function TeachersPage() {
-  const teachers = await getTeachers();
+  const { teachers, myTeacherIds } = await getTeachers();
+  const myTeachers = teachers.filter((teacher) => myTeacherIds.has(teacher.id));
 
   return (
     <AppShell>
@@ -90,8 +105,29 @@ export default async function TeachersPage() {
           </div>
         </header>
 
+        {myTeachers.length > 0 ? (
+          <section className="mt-10">
+            <h2 className="text-2xl font-black text-[#131525]">Мои преподаватели</h2>
+            <div className="mt-5 grid gap-4 lg:grid-cols-3">
+              {myTeachers.map((teacher) => {
+                const profile = firstRelation(teacher.profiles);
+                return (
+                  <Card key={`my-${teacher.id}`} className="rounded-[1.35rem] border-[#dcd8ff] shadow-[0_6px_20px_rgba(103,92,255,0.10)]">
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-4"><Avatar className="h-16 w-16">{profile?.avatar_url ? <AvatarImage src={profile.avatar_url} alt={profile.full_name} /> : null}<AvatarFallback>{(profile?.full_name ?? "П").slice(0, 2)}</AvatarFallback></Avatar><div><h3 className="text-lg font-black text-[#131525]">{profile?.full_name ?? "Преподаватель"}</h3><Badge className="mt-2 border-[#deddf1] bg-[#fbfbff]">Мой преподаватель</Badge></div></div>
+                      <p className="mt-5 font-semibold text-[#131525]">{teacher.headline}</p>
+                      <Button asChild className="mt-5 w-full rounded-full bg-[#675cff] hover:bg-[#5b50f0]"><Link href={`/teachers/${teacher.slug}`}>Открыть профиль</Link></Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        <h2 className="mt-12 text-2xl font-black text-[#131525]">Преподаватели</h2>
         {teachers.length > 0 ? (
-          <div className="mt-8 grid gap-4 lg:grid-cols-3">
+          <div className="mt-5 grid gap-4 lg:grid-cols-3">
             {teachers.map((teacher) => {
               const profile = firstRelation(teacher.profiles);
 

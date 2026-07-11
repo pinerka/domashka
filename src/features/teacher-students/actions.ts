@@ -64,7 +64,7 @@ export async function addStudentToTeacherAction(formData: FormData) {
     {
       teacher_id: teacherProfile.id,
       student_id: studentId,
-      status: "active"
+      status: "pending"
     },
     { onConflict: "teacher_id,student_id" }
   );
@@ -75,7 +75,42 @@ export async function addStudentToTeacherAction(formData: FormData) {
 
   revalidatePath("/students");
   revalidatePath("/teacher/students");
-  redirect("/teacher/students?added=1");
+  redirect("/students?invited=1");
+}
+
+export async function answerTeacherInvitationAction(formData: FormData) {
+  if (!isSupabaseConfigured()) {
+    redirect("/");
+  }
+
+  const invitationId = value(formData, "invitation_id");
+  const decision = value(formData, "decision") === "accept" ? "active" : "rejected";
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { error } = await supabase
+    .from("teacher_students")
+    .update({ status: decision })
+    .eq("id", invitationId)
+    .eq("student_id", user.id)
+    .eq("status", "pending");
+
+  if (error) {
+    redirect(`/?invitationError=${encodeURIComponent(error.message)}`);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/student");
+  revalidatePath("/students");
+  revalidatePath("/teachers");
+  revalidatePath("/teacher/students");
+  redirect(decision === "active" ? "/?invitation=accepted" : "/?invitation=declined");
 }
 
 export async function inviteStudentToLessonAction(formData: FormData) {

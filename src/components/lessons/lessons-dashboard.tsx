@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { CalendarDays, Clock3, Plus, Video, type LucideIcon } from "lucide-react";
+import { CalendarDays, Check, Clock3, Plus, UserPlus, Video, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { encodeLessonParams, type PlannedLesson } from "@/features/lessons/types";
+import { answerTeacherInvitationAction } from "@/features/teacher-students/actions";
+import type { TeacherInvitation } from "@/features/teacher-students/queries";
 
 function EmptyLessonSection({
   title,
@@ -32,10 +34,12 @@ function EmptyLessonSection({
 
 export function LessonsDashboard({
   plannedLessons = [],
-  canCreateLesson = false
+  canCreateLesson = false,
+  teacherInvitations = []
 }: {
   plannedLessons?: PlannedLesson[];
   canCreateLesson?: boolean;
+  teacherInvitations?: TeacherInvitation[];
 }) {
   return (
     <main className="min-h-[calc(100vh-5rem)] border-t border-[#ececf4] bg-[#f8f8ff]">
@@ -54,6 +58,33 @@ export function LessonsDashboard({
             </Button>
           ) : null}
         </header>
+
+        {teacherInvitations.length > 0 ? (
+          <section className="mt-8 space-y-3">
+            {teacherInvitations.map((invitation) => (
+              <div key={invitation.id} className="ml-auto flex max-w-xl flex-col gap-4 rounded-[1.35rem] border border-[#dcd8ff] bg-white p-5 shadow-[0_8px_28px_rgba(103,92,255,0.12)] sm:flex-row sm:items-center">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#efedff] text-[#675cff]">
+                  <UserPlus className="h-5 w-5" />
+                </span>
+                <p className="flex-1 font-semibold text-[#1b1d2d]">
+                  Преподаватель <span className="font-black">{invitation.teacherName}</span> приглашает вас в ученики.
+                </p>
+                <div className="flex gap-2">
+                  <form action={answerTeacherInvitationAction}>
+                    <input type="hidden" name="invitation_id" value={invitation.id} />
+                    <input type="hidden" name="decision" value="accept" />
+                    <Button className="rounded-full bg-[#675cff] hover:bg-[#5b50f0]"><Check className="h-4 w-4" />Принять</Button>
+                  </form>
+                  <form action={answerTeacherInvitationAction}>
+                    <input type="hidden" name="invitation_id" value={invitation.id} />
+                    <input type="hidden" name="decision" value="decline" />
+                    <Button variant="outline" className="rounded-full"><X className="h-4 w-4" />Отклонить</Button>
+                  </form>
+                </div>
+              </div>
+            ))}
+          </section>
+        ) : null}
 
         <section className="mt-10">
           <h2 className="text-2xl font-black tracking-normal text-[#131525]">Предстоящие</h2>
