@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, Search, Send, UserRound } from "lucide-react";
 import { AppShell } from "@/components/site/app-shell";
+import { InvitationNotice } from "@/components/teacher-students/invitation-notice";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,13 +71,30 @@ async function getMyStudents() {
   return (data ?? []) as unknown as TeacherStudentRow[];
 }
 
-export default async function TeacherStudentsPage() {
+export default async function TeacherStudentsPage({
+  searchParams
+}: {
+  searchParams: Promise<{ invited?: string; error?: string }>;
+}) {
+  const query = await searchParams;
   const links = await getMyStudents();
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <AppShell>
+      <InvitationNotice
+        message={
+          query.invited === "1"
+            ? "Урок появился в разделе «Запланированные уроки» у вас и у ученика. В него уже можно перейти с главной страницы."
+            : undefined
+        }
+      />
       <main className="mx-auto min-h-[calc(100vh-5rem)] w-full max-w-[1280px] px-6 py-12">
+        {query.error ? (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 font-medium text-red-700">
+            Не удалось отправить приглашение: {query.error}
+          </div>
+        ) : null}
         <header className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
             <Badge>Teacher CRM</Badge>

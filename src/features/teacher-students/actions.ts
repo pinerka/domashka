@@ -127,24 +127,41 @@ export async function inviteStudentToLessonAction(formData: FormData) {
     redirect(`/teacher/students?error=${encodeURIComponent(confirmError.message)}`);
   }
 
-  const { data: lesson } = await supabase.from("lessons").select("id").eq("booking_id", booking.id).maybeSingle();
+  const { data: lesson, error: lessonError } = await supabase
+    .from("lessons")
+    .select("id")
+    .eq("booking_id", booking.id)
+    .maybeSingle();
 
-  if (lesson?.id) {
-    const room = await createDailyRoom({
+  if (lessonError || !lesson?.id) {
+    redirect(`/teacher/students?error=${encodeURIComponent(lessonError?.message ?? "Урок не был создан")}`);
+  }
+
+  let room;
+
+  try {
+    room = await createDailyRoom({
       lessonId: lesson.id,
       title,
       startsAt,
       endsAt
-    }).catch(() => null);
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось создать видеокомнату";
+    redirect(`/teacher/students?error=${encodeURIComponent(message)}`);
+  }
 
-    await supabase
-      .from("lessons")
-      .update({
-        title,
-        video_provider: "daily",
-        video_room_url: room?.roomUrl ?? null
-      })
-      .eq("id", lesson.id);
+  const { error: lessonUpdateError } = await supabase
+    .from("lessons")
+    .update({
+      title,
+      video_provider: "daily",
+      video_room_url: room.roomUrl
+    })
+    .eq("id", lesson.id);
+
+  if (lessonUpdateError) {
+    redirect(`/teacher/students?error=${encodeURIComponent(lessonUpdateError.message)}`);
   }
 
   revalidatePath("/");
