@@ -136,7 +136,9 @@ export async function deleteLessonAction(formData: FormData) {
       redirect("/login");
     }
 
-    const { error } = await supabase.from("lessons").delete().eq("id", lessonId);
+    const { error } = await supabase.rpc("delete_own_lesson", {
+      target_lesson_id: lessonId
+    });
 
     if (error) {
       redirect(`/lesson/${lessonId}?deleteError=${encodeURIComponent(error.message)}`);
