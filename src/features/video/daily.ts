@@ -48,6 +48,22 @@ export async function createDailyRoom(request: DailyRoomRequest): Promise<DailyR
     })
   });
 
+  if (response.status === 400 || response.status === 409) {
+    const existingResponse = await fetch(`${apiUrl}/rooms/${roomName}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.DAILY_API_KEY}`
+      }
+    });
+
+    if (existingResponse.ok) {
+      const existingRoom = (await existingResponse.json()) as { url?: string };
+
+      if (existingRoom.url) {
+        return { provider: "daily", roomUrl: existingRoom.url };
+      }
+    }
+  }
+
   if (!response.ok) {
     throw new DailyRoomError(`Daily room creation failed with status ${response.status}`);
   }

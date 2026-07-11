@@ -23,9 +23,11 @@ type TeacherRow = {
   profiles: {
     full_name: string;
     avatar_url: string | null;
+    user_roles: { role: string }[];
   } | {
     full_name: string;
     avatar_url: string | null;
+    user_roles: { role: string }[];
   }[] | null;
   teacher_subjects: {
     subjects: {
@@ -56,10 +58,15 @@ async function getTeachers() {
         experience_years,
         rating_avg,
         rating_count,
-        profiles:profiles!teacher_profiles_user_id_fkey(full_name, avatar_url),
+        profiles:profiles!teacher_profiles_user_id_fkey!inner(
+          full_name,
+          avatar_url,
+          user_roles!inner(role)
+        ),
         teacher_subjects(subjects(name))
       `
     )
+    .eq("profiles.user_roles.role", "teacher")
     .eq("status", "approved")
     .order("created_at", { ascending: false });
 

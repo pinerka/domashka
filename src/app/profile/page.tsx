@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { AppShell } from "@/components/site/app-shell";
 import { ProfileSettings, type ProfileFormValues } from "@/components/profile/profile-settings";
+import { getSavedUserRole } from "@/features/auth/queries";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -52,8 +53,8 @@ export default async function ProfilePage({
   const params = await searchParams;
   const cookieStore = await cookies();
   const savedRole = cookieStore.get("learnspace_role")?.value;
-  const currentRole = params.role === "teacher" || savedRole === "teacher" || params.demo === "role-teacher" ? "teacher" : "student";
-  const values = await getProfileValues();
+  const [databaseRole, values] = await Promise.all([getSavedUserRole(), getProfileValues()]);
+  const currentRole = databaseRole ?? (params.role === "teacher" || savedRole === "teacher" || params.demo === "role-teacher" ? "teacher" : "student");
 
   return (
     <AppShell>

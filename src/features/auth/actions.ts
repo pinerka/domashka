@@ -171,7 +171,12 @@ export async function updateRoleAction(formData: FormData) {
     redirect(`/profile?role=${role}&error=${encodeURIComponent(error instanceof Error ? error.message : "Не удалось создать профиль")}`);
   }
 
-  await supabase.from("user_roles").delete().eq("user_id", user.id).in("role", ["student", "teacher"]);
+  const { error: deleteRoleError } = await supabase.from("user_roles").delete().eq("user_id", user.id).in("role", ["student", "teacher"]);
+
+  if (deleteRoleError) {
+    redirect(`/profile?error=${encodeURIComponent(deleteRoleError.message)}`);
+  }
+
   const { error } = await supabase.from("user_roles").insert({ user_id: user.id, role });
 
   if (error) {
