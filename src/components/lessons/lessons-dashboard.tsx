@@ -30,7 +30,13 @@ function EmptyLessonSection({
   );
 }
 
-export function LessonsDashboard({ plannedLessons = [] }: { plannedLessons?: PlannedLesson[] }) {
+export function LessonsDashboard({
+  plannedLessons = [],
+  canCreateLesson = false
+}: {
+  plannedLessons?: PlannedLesson[];
+  canCreateLesson?: boolean;
+}) {
   return (
     <main className="min-h-[calc(100vh-5rem)] border-t border-[#ececf4] bg-[#f8f8ff]">
       <div className="mx-auto w-full max-w-[1280px] px-6 pb-24 pt-14">
@@ -39,12 +45,14 @@ export function LessonsDashboard({ plannedLessons = [] }: { plannedLessons?: Pla
             <h1 className="text-4xl font-black tracking-normal text-[#121424]">Мои уроки</h1>
             <p className="mt-3 text-xl leading-7 text-slate-500">Присоединяйтесь к урокам и пересматривайте записи.</p>
           </div>
-          <Button asChild className="w-fit rounded-full bg-[#675cff] hover:bg-[#5b50f0]">
-            <Link href="/lessons/new">
-              <Plus className="h-4 w-4" />
-              Создать урок
-            </Link>
-          </Button>
+          {canCreateLesson ? (
+            <Button asChild className="w-fit rounded-full bg-[#675cff] hover:bg-[#5b50f0]">
+              <Link href="/lessons/new">
+                <Plus className="h-4 w-4" />
+                Создать урок
+              </Link>
+            </Button>
+          ) : null}
         </header>
 
         <section className="mt-10">

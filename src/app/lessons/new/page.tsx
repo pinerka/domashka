@@ -1,8 +1,48 @@
 import { Bell, BookOpen, CalendarDays, ChevronDown, Clock, Grid2X2, Sparkles, Type, User, Users } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getSavedUserRole } from "@/features/auth/queries";
 import { createLessonAction } from "@/features/lessons/actions";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
+
+type MyStudent = {
+  student_id: string;
+  profiles: { full_name: string } | { full_name: string }[] | null;
+};
+
+function firstRelation<T>(relation: T | T[] | null) {
+  return Array.isArray(relation) ? relation[0] : relation;
+}
+
+async function getMyStudents() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: teacherProfile } = await supabase.from("teacher_profiles").select("id").eq("user_id", user.id).maybeSingle();
+
+  if (!teacherProfile) {
+    return [];
+  }
+
+  const { data } = await supabase
+    .from("teacher_students")
+    .select("student_id, profiles:profiles!teacher_students_student_id_fkey(full_name)")
+    .eq("teacher_id", teacherProfile.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: false });
+
+  return (data ?? []) as unknown as MyStudent[];
+}
 
 function CalendarIllustration() {
   return (
@@ -24,7 +64,18 @@ function CalendarIllustration() {
   );
 }
 
-export default function NewLessonPage() {
+export default async function NewLessonPage({
+  searchParams
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const role = await getSavedUserRole();
+
+  if (role !== "teacher") {
+    redirect("/");
+  }
+
+  const [students, query] = await Promise.all([getMyStudents(), searchParams]);
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -90,12 +141,37 @@ export default function NewLessonPage() {
             </div>
 
             <form action={createLessonAction} className="grid gap-8">
+              {query.error ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 font-medium text-red-700">
+                  Не удалось создать урок: {query.error}
+                </div>
+              ) : null}
               <div className="grid gap-3">
                 <label className="flex items-center gap-2 text-base font-black text-[#131525]" htmlFor="title">
                   <Type className="h-5 w-5 text-[#675cff]" />
                   Тема урока
                 </label>
                 <Input id="title" name="title" required placeholder="Например: Present Simple" className="h-16 rounded-xl border-[#dfe1ee] px-5 text-lg" />
+              </div>
+
+              <div className="grid gap-3">
+                <label className="flex items-center gap-2 text-base font-black text-[#131525]" htmlFor="student_id">
+                  <Users className="h-5 w-5 text-[#675cff]" />
+                  Пригласить ученика
+                </label>
+                {students.length > 0 ? (
+                  <select id="student_id" name="student_id" required defaultValue="" className="h-16 rounded-xl border border-[#dfe1ee] bg-white px-5 text-lg text-[#131525] outline-none focus:border-[#675cff]">
+                    <option value="" disabled>Выберите ученика из «Моих учеников»</option>
+                    {students.map((link) => {
+                      const student = firstRelation(link.profiles);
+                      return student ? <option key={link.student_id} value={link.student_id}>{student.full_name}</option> : null;
+                    })}
+                  </select>
+                ) : (
+                  <div className="rounded-xl border border-[#e5e6f1] bg-[#fafaff] px-5 py-4 text-slate-500">
+                    Сначала добавьте ученика в разделе «Мои ученики». <Link href="/students" className="font-bold text-[#675cff]">Найти ученика</Link>
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-6 md:grid-cols-2">
@@ -116,12 +192,12 @@ export default function NewLessonPage() {
               </div>
 
               <div className="flex flex-col gap-5 border-t border-[#ececf4] pt-8 md:flex-row md:items-center">
-                <Button className="h-14 rounded-2xl bg-[#675cff] px-8 text-base font-black shadow-[0_14px_30px_rgba(103,92,255,0.28)] hover:bg-[#5b50f0]">
+                <Button disabled={students.length === 0} className="h-14 rounded-2xl bg-[#675cff] px-8 text-base font-black shadow-[0_14px_30px_rgba(103,92,255,0.28)] hover:bg-[#5b50f0]">
                   <Sparkles className="h-5 w-5" />
-                  Создать урок
+                  Создать и пригласить
                 </Button>
                 <p className="max-w-md text-sm font-semibold leading-6 text-[#7770cc]">
-                  После создания урока вы сможете пригласить учеников и начать занятие.
+                  Урок сразу появится в предстоящих у вас и выбранного ученика.
                 </p>
               </div>
             </form>

@@ -545,6 +545,18 @@ export function LessonRoomClient({
   }
 
   function startPointer(event: PointerEvent) {
+    if (event.button === 1) {
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setBoardPan({
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startScrollLeft: boardRef.current?.scrollLeft ?? 0,
+        startScrollTop: boardRef.current?.scrollTop ?? 0
+      });
+      return;
+    }
+
     if (isTeacher && tool === "zoom" && event.pointerType === "touch") {
       touchPointersRef.current.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
 
@@ -850,6 +862,7 @@ export function LessonRoomClient({
             onPointerMove={movePointer}
             onPointerUp={endPointer}
             onPointerLeave={endPointer}
+            onAuxClick={(event) => event.preventDefault()}
             style={{ overscrollBehavior: "none", touchAction: "none" }}
             >
               <div

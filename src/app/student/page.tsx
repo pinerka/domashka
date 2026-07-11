@@ -26,7 +26,7 @@ export default async function StudentDashboardPage() {
 
   return (
     <AppShell>
-      <LessonsDashboard plannedLessons={plannedLessons} />
+      <LessonsDashboard plannedLessons={plannedLessons} canCreateLesson={false} />
     </AppShell>
   );
 }
