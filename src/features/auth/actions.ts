@@ -28,6 +28,22 @@ async function persistCurrentRole(role: UserRole) {
   });
 }
 
+async function ensureBaseProfile(user: { id: string; email?: string | null; user_metadata?: { full_name?: string } }, fullName?: string) {
+  const supabase = await createSupabaseServerClient();
+  const displayName = fullName?.trim() || user.user_metadata?.full_name?.trim() || user.email?.split("@")[0] || "Пользователь";
+
+  const { error } = await supabase.from("profiles").upsert({
+    id: user.id,
+    full_name: displayName,
+    timezone: "Europe/Moscow",
+    locale: "ru"
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function ensureTeacherProfile(user: { id: string; email?: string | null }, fullName?: string) {
   const supabase = await createSupabaseServerClient();
   const displayName = fullName?.trim() || user.email?.split("@")[0] || "Преподаватель";
@@ -102,15 +118,10 @@ export async function signUpAction(formData: FormData) {
   }
 
   if (data.user) {
-    const { error: profileError } = await supabase.from("profiles").upsert({
-      id: data.user.id,
-      full_name: fullName,
-      timezone: "Europe/Moscow",
-      locale: "ru"
-    });
-
-    if (profileError) {
-      redirect(`/register?error=${encodeURIComponent(profileError.message)}`);
+    try {
+      await ensureBaseProfile(data.user, fullName);
+    } catch (error) {
+      redirect(`/register?error=${encodeURIComponent(error instanceof Error ? error.message : "Не удалось создать профиль")}`);
     }
 
     const { error: roleError } = await supabase.from("user_roles").upsert({ user_id: data.user.id, role });
@@ -154,6 +165,12 @@ export async function updateRoleAction(formData: FormData) {
     redirect("/login");
   }
 
+  try {
+    await ensureBaseProfile(user);
+  } catch (error) {
+    redirect(`/profile?role=${role}&error=${encodeURIComponent(error instanceof Error ? error.message : "Не удалось создать профиль")}`);
+  }
+
   await supabase.from("user_roles").delete().eq("user_id", user.id).in("role", ["student", "teacher"]);
   const { error } = await supabase.from("user_roles").insert({ user_id: user.id, role });
 
@@ -170,6 +187,7 @@ export async function updateRoleAction(formData: FormData) {
   }
 
   revalidatePath("/teachers");
+  revalidatePath("/students");
   revalidatePath("/profile");
   redirect(`/profile?role=${role}&saved=role`);
 }
