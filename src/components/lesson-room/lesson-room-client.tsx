@@ -116,15 +116,6 @@ async function canvasToImageUrl(canvas: HTMLCanvasElement) {
   return canvas.toDataURL("image/png");
 }
 
-async function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 function isRealtimeConfigured() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
@@ -307,6 +298,10 @@ export function LessonRoomClient({
 
         syncReadyRef.current = true;
         sendSyncMessage({ kind: "request_state" });
+
+        if (isTeacher) {
+          setTimeout(() => broadcastWhiteboardState(), 250);
+        }
       });
 
     channelRef.current = channel;
@@ -722,7 +717,10 @@ export function LessonRoomClient({
       if (isPdf) {
         try {
           const pdfResult = await renderPdfAsImages(file, viewportCenterX, nextY);
-          nextFiles.push(...pdfResult.pages);
+          for (const page of pdfResult.pages) {
+            const pageBlob = await fetch(page.url).then((response) => response.blob());
+            nextFiles.push({ ...page, url: await uploadBoardAsset(pageBlob, `${page.name}.png`) });
+          }
           nextY = pdfResult.bottomY + 24;
         } catch (error) {
           console.error("Не удалось добавить PDF на доску", error);
@@ -737,7 +735,7 @@ export function LessonRoomClient({
         nextFiles.push({
           id: crypto.randomUUID(),
           type: "image",
-          url: await fileToDataUrl(file),
+          url: await uploadBoardAsset(file, file.name),
           name: file.name,
           x: Math.max(0, viewportCenterX - fileWidth / 2),
           y: nextY,
@@ -750,6 +748,28 @@ export function LessonRoomClient({
 
     setFiles((items) => [...items, ...nextFiles]);
     event.target.value = "";
+  }
+
+  async function uploadBoardAsset(blob: Blob, originalName: string) {
+    const supabase = createSupabaseBrowserClient();
+    const safeName = originalName.toLowerCase().replace(/[^a-z0-9а-яё._-]+/gi, "-").slice(-100) || "asset";
+    const storagePath = `${lessonId}/${crypto.randomUUID()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage.from("lesson-assets").upload(storagePath, blob, {
+      contentType: blob.type || "application/octet-stream",
+      upsert: false
+    });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data, error: urlError } = await supabase.storage.from("lesson-assets").createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+
+    if (urlError || !data?.signedUrl) {
+      throw urlError ?? new Error("Не удалось получить ссылку на файл");
+    }
+
+    return data.signedUrl;
   }
 
   const toolButtonClass = "flex h-12 w-12 items-center justify-center rounded-2xl text-[#0b1024] transition hover:bg-[#f1efff]";
@@ -813,7 +833,7 @@ export function LessonRoomClient({
 
   return (
     <main className="h-screen overflow-hidden bg-white text-[#090d21]">
-      <Button asChild variant="outline" className="fixed left-6 top-6 z-[70] h-11 rounded-full border-[#deddf1] bg-white/95 px-5 font-bold shadow-sm backdrop-blur">
+      <Button asChild variant="outline" className="fixed left-6 top-1 z-[70] h-11 rounded-full border-[#deddf1] bg-white/95 px-5 font-bold shadow-sm backdrop-blur">
         <Link href="/">
           <ArrowLeft className="h-4 w-4" />
           Назад
@@ -896,6 +916,7 @@ export function LessonRoomClient({
             onPointerUp={endPointer}
             onPointerLeave={endPointer}
             onAuxClick={(event) => event.preventDefault()}
+            onScroll={scheduleBoardViewSync}
             style={{ overscrollBehavior: "none", touchAction: "none" }}
             >
               <div
