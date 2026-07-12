@@ -193,6 +193,7 @@ export function LessonRoomClient({
   const [texts, setTexts] = useState<TextItem[]>([]);
   const [draftText, setDraftText] = useState<{ x: number; y: number; value: string } | null>(null);
   const [files, setFiles] = useState<BoardFile[]>([]);
+  const [fileStatus, setFileStatus] = useState<string | null>(null);
   const [fileInteraction, setFileInteraction] = useState<FileInteraction | null>(null);
   const [boardPan, setBoardPan] = useState<BoardPan | null>(null);
   const [boardZoom, setBoardZoom] = useState(1);
@@ -348,7 +349,7 @@ export function LessonRoomClient({
     return {
       strokes: strokesRef.current,
       texts: textsRef.current,
-      files: filesRef.current,
+      files: filesRef.current.filter((file) => file.url.startsWith("https://")),
       view: getBoardView()
     };
   }
@@ -707,8 +708,9 @@ export function LessonRoomClient({
     const board = boardRef.current;
     const viewportCenterX = board ? (board.scrollLeft + board.clientWidth / 2) / boardZoomRef.current : BOARD_WIDTH / 2;
     const viewportCenterY = board ? (board.scrollTop + board.clientHeight / 2) / boardZoomRef.current : BOARD_HEIGHT / 2;
-    const nextFiles: BoardFile[] = [];
     let nextY = Math.max(0, viewportCenterY - 360);
+    let uploadFailed = false;
+    setFileStatus("Подготавливаем файл…");
 
     for (const file of selectedFiles) {
       const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
@@ -717,13 +719,20 @@ export function LessonRoomClient({
       if (isPdf) {
         try {
           const pdfResult = await renderPdfAsImages(file, viewportCenterX, nextY);
-          for (const page of pdfResult.pages) {
+          setFiles((items) => [...items, ...pdfResult.pages]);
+          setFileStatus(`Загружаем PDF: ${pdfResult.pages.length} стр.`);
+
+          const uploadedPages = await Promise.all(pdfResult.pages.map(async (page) => {
             const pageBlob = await fetch(page.url).then((response) => response.blob());
-            nextFiles.push({ ...page, url: await uploadBoardAsset(pageBlob, `${page.name}.png`) });
-          }
+            return { id: page.id, url: await uploadBoardAsset(pageBlob, `${page.name}.png`) };
+          }));
+          const uploadedUrls = new Map(uploadedPages.map((page) => [page.id, page.url]));
+          setFiles((items) => items.map((item) => uploadedUrls.has(item.id) ? { ...item, url: uploadedUrls.get(item.id)! } : item));
           nextY = pdfResult.bottomY + 24;
         } catch (error) {
           console.error("Не удалось добавить PDF на доску", error);
+          uploadFailed = true;
+          setFileStatus(`Ошибка загрузки PDF: ${error instanceof Error ? error.message : "проверьте SQL 0015"}`);
         }
 
         continue;
@@ -731,22 +740,36 @@ export function LessonRoomClient({
 
       if (isImage) {
         const fileWidth = 560;
-
-        nextFiles.push({
-          id: crypto.randomUUID(),
+        const imageId = crypto.randomUUID();
+        const localUrl = URL.createObjectURL(file);
+        setFiles((items) => [...items, {
+          id: imageId,
           type: "image",
-          url: await uploadBoardAsset(file, file.name),
+          url: localUrl,
           name: file.name,
           x: Math.max(0, viewportCenterX - fileWidth / 2),
           y: nextY,
           width: fileWidth
-        });
+        }]);
+
+        try {
+          const sharedUrl = await uploadBoardAsset(file, file.name);
+          setFiles((items) => items.map((item) => item.id === imageId ? { ...item, url: sharedUrl } : item));
+          URL.revokeObjectURL(localUrl);
+        } catch (error) {
+          console.error("Не удалось добавить изображение на доску", error);
+          uploadFailed = true;
+          setFileStatus(`Ошибка загрузки изображения: ${error instanceof Error ? error.message : "проверьте SQL 0015"}`);
+        }
 
         nextY += 760;
       }
     }
 
-    setFiles((items) => [...items, ...nextFiles]);
+    if (selectedFiles.length > 0 && !uploadFailed) {
+      setFileStatus("Файл добавлен на доску");
+      setTimeout(() => setFileStatus(null), 2500);
+    }
     event.target.value = "";
   }
 
@@ -846,6 +869,11 @@ export function LessonRoomClient({
             Завершить урок
           </Button>
         </form>
+      ) : null}
+      {fileStatus ? (
+        <div className={`fixed left-1/2 top-4 z-[90] -translate-x-1/2 rounded-full px-5 py-3 text-sm font-bold shadow-lg ${fileStatus.startsWith("Ошибка") ? "bg-red-600 text-white" : "bg-[#131525] text-white"}`}>
+          {fileStatus}
+        </div>
       ) : null}
       <div className="h-full w-full">
         <header className="hidden min-h-20 items-center justify-between rounded-[1.4rem] border border-white/80 bg-white/90 px-8 shadow-[0_12px_38px_rgba(18,24,48,0.06)] backdrop-blur">
