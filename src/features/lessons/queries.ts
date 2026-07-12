@@ -10,6 +10,7 @@ type LessonRow = {
   video_room_url: string | null;
   teacher_name_snapshot: string | null;
   student_name_snapshot: string | null;
+  status: "scheduled" | "live" | "completed" | "cancelled";
   teacher_profiles: {
     profiles: {
       full_name: string;
@@ -62,6 +63,7 @@ export async function getVisibleLessons() {
         video_room_url,
         teacher_name_snapshot,
         student_name_snapshot,
+        status,
         teacher_profiles(profiles(full_name)),
         lesson_participants(role, profiles(full_name))
       `
@@ -81,7 +83,8 @@ export async function getVisibleLessons() {
       endsAt: lesson.ends_at,
       roomUrl: lesson.video_room_url ?? "",
       teacherName: teacherBaseProfile?.full_name ?? lesson.teacher_name_snapshot ?? "Удалённый преподаватель",
-      studentName: studentProfile?.full_name ?? lesson.student_name_snapshot ?? "Удалённый ученик"
+      studentName: studentProfile?.full_name ?? lesson.student_name_snapshot ?? "Удалённый ученик",
+      status: lesson.status
     };
   });
 }

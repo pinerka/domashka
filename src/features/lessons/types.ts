@@ -6,6 +6,7 @@ export type PlannedLesson = {
   roomUrl: string;
   teacherName: string;
   studentName: string;
+  status?: "scheduled" | "live" | "completed" | "cancelled";
 };
 
 export function encodeLessonParams(lesson: PlannedLesson) {
@@ -15,6 +16,7 @@ export function encodeLessonParams(lesson: PlannedLesson) {
     endsAt: lesson.endsAt,
     roomUrl: lesson.roomUrl,
     teacherName: lesson.teacherName,
-    studentName: lesson.studentName
+    studentName: lesson.studentName,
+    status: lesson.status ?? "scheduled"
   }).toString();
 }

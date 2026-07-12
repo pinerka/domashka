@@ -22,7 +22,8 @@ export default async function LessonPage({
     endsAt: query.endsAt ?? new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     roomUrl: query.roomUrl ?? "",
     teacherName: query.teacherName ?? "Pinerov Volodya",
-    studentName: query.studentName ?? "Владимир"
+    studentName: query.studentName ?? "Владимир",
+    status: query.status ?? "scheduled"
   };
 
   const displayDate = new Intl.DateTimeFormat("ru-RU", {
@@ -66,7 +67,9 @@ export default async function LessonPage({
         </div>
 
         <div className="mt-8">
-          <span className="rounded-full bg-[#efedff] px-4 py-2 text-sm font-bold text-[#675cff]">Запланирован</span>
+          <span className={`rounded-full px-4 py-2 text-sm font-bold ${lesson.status === "completed" ? "bg-emerald-50 text-emerald-700" : "bg-[#efedff] text-[#675cff]"}`}>
+            {lesson.status === "completed" ? "Завершён" : "Запланирован"}
+          </span>
           <h1 className="mt-5 text-5xl font-black tracking-normal text-[#080b1c]">{lesson.title}</h1>
           <p className="mt-3 text-xl text-slate-500">{lesson.title} · {displayDate} · 60 мин</p>
         </div>

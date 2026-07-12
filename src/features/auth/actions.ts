@@ -262,8 +262,7 @@ export async function deleteAccountAction() {
 
   await supabase.auth.signOut();
   const cookieStore = await cookies();
-  cookieStore.delete("learnspace_role");
-  cookieStore.delete("learnspace_lessons");
+  cookieStore.getAll().forEach((cookie) => cookieStore.delete(cookie.name));
   redirect(`/login?notice=${encodeURIComponent("Аккаунт полностью удалён. Для входа зарегистрируйтесь заново.")}`);
 }
 

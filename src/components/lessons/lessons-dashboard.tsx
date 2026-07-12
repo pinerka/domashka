@@ -41,6 +41,9 @@ export function LessonsDashboard({
   canCreateLesson?: boolean;
   teacherInvitations?: TeacherInvitation[];
 }) {
+  const upcomingLessons = plannedLessons.filter((lesson) => lesson.status !== "completed");
+  const completedLessons = plannedLessons.filter((lesson) => lesson.status === "completed");
+
   return (
     <main className="min-h-[calc(100vh-5rem)] border-t border-[#ececf4] bg-[#f8f8ff]">
       <div className="mx-auto w-full max-w-[1280px] px-6 pb-24 pt-14">
@@ -88,9 +91,9 @@ export function LessonsDashboard({
 
         <section className="mt-10">
           <h2 className="text-2xl font-black tracking-normal text-[#131525]">Предстоящие</h2>
-          {plannedLessons.length > 0 ? (
+          {upcomingLessons.length > 0 ? (
             <div className="mt-5 space-y-4">
-              {plannedLessons.map((lesson) => (
+              {upcomingLessons.map((lesson) => (
                 <Link
                   key={lesson.id}
                   href={`/lesson/${lesson.id}?${encodeLessonParams(lesson)}`}
@@ -131,11 +134,27 @@ export function LessonsDashboard({
           )}
         </section>
 
-        <EmptyLessonSection
-          title="История"
-          description="Завершённые уроки"
-          icon={Clock3}
-        />
+        <section className="mt-10">
+          <h2 className="text-2xl font-black tracking-normal text-[#131525]">Завершённые уроки</h2>
+          {completedLessons.length > 0 ? (
+            <div className="mt-5 space-y-4">
+              {completedLessons.map((lesson) => (
+                <Link key={lesson.id} href={`/lesson/${lesson.id}?${encodeLessonParams(lesson)}`} className="block rounded-[1.35rem] border border-[#e3e4ef] bg-white px-6 py-6 shadow-[0_3px_10px_rgba(17,24,39,0.06)] transition hover:border-[#675cff]">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700">Завершён</span>
+                      <h3 className="mt-4 text-xl font-black text-[#121424]">{lesson.title}</h3>
+                      <p className="mt-2 text-base text-slate-500">Репетитор: {lesson.teacherName} · {new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(lesson.startsAt))}</p>
+                    </div>
+                    <Clock3 className="h-6 w-6 text-emerald-600" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-[1.35rem] border border-[#e3e4ef] bg-white px-6 py-8 text-slate-500 shadow-[0_3px_10px_rgba(17,24,39,0.06)]">Завершённых уроков пока нет.</div>
+          )}
+        </section>
       </div>
     </main>
   );

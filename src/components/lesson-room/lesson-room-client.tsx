@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { finishLessonAction } from "@/features/lessons/actions";
 
 type Tool = "draw" | "erase" | "hand" | "text" | "zoom";
 type UserRole = "student" | "teacher";
@@ -794,6 +795,14 @@ export function LessonRoomClient({
           Назад
         </Link>
       </Button>
+      {isTeacher ? (
+        <form action={finishLessonAction} className="fixed right-6 top-6 z-[70]">
+          <input type="hidden" name="lesson_id" value={lessonId} />
+          <Button className="h-11 rounded-full bg-emerald-600 px-5 font-bold hover:bg-emerald-700">
+            Завершить урок
+          </Button>
+        </form>
+      ) : null}
       <div className="h-full w-full">
         <header className="hidden min-h-20 items-center justify-between rounded-[1.4rem] border border-white/80 bg-white/90 px-8 shadow-[0_12px_38px_rgba(18,24,48,0.06)] backdrop-blur">
           <Link href="/" className="flex items-center gap-3 text-2xl font-black">

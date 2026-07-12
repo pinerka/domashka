@@ -160,3 +160,32 @@ export async function deleteLessonAction(formData: FormData) {
   revalidatePath("/student");
   redirect("/");
 }
+
+export async function finishLessonAction(formData: FormData) {
+  const lessonId = value(formData, "lesson_id");
+
+  if (!isSupabaseConfigured()) {
+    redirect("/");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: finished, error } = await supabase.rpc("finish_own_lesson", {
+    target_lesson_id: lessonId
+  });
+
+  if (error || !finished) {
+    redirect(`/lesson/${lessonId}?finishError=${encodeURIComponent(error?.message ?? "Завершить урок может только преподаватель")}`);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/student");
+  redirect("/");
+}
