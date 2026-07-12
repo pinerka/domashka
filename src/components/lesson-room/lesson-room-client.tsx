@@ -198,7 +198,7 @@ export function LessonRoomClient({
   const [color, setColor] = useState(colors[0]);
   const [width, setWidth] = useState(8);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [currentStroke, setCurrentStroke] = useState<Stroke | null>(null);
+  const activeStrokeIdRef = useRef<string | null>(null);
   const [texts, setTexts] = useState<TextItem[]>([]);
   const [draftText, setDraftText] = useState<{ x: number; y: number; value: string } | null>(null);
   const [files, setFiles] = useState<BoardFile[]>([]);
@@ -286,17 +286,17 @@ export function LessonRoomClient({
           return;
         }
 
-        if (payload.kind === "request_state") {
+        if (payload.kind === "request_state" && isTeacher) {
           broadcastWhiteboardState();
           return;
         }
 
         if (payload.kind === "state") {
-          applyRemoteState(payload.state);
+          applyRemoteState(payload.state, payload.senderRole);
           return;
         }
 
-        if (payload.kind === "view" && payload.senderRole === "teacher") {
+        if (payload.kind === "view" && payload.senderRole === "teacher" && !isTeacher) {
           applyBoardView(payload.view);
         }
       })
@@ -393,16 +393,34 @@ export function LessonRoomClient({
     });
   }
 
-  function applyRemoteState(state: WhiteboardState) {
+  function applyRemoteState(state: WhiteboardState, senderRole: UserRole) {
     isApplyingRemoteRef.current = true;
-    setStrokes(state.strokes);
-    setTexts(state.texts);
-    setFiles(state.files);
-    applyBoardView(state.view);
+    setStrokes((current) => {
+      const merged = new Map(current.map((stroke) => [stroke.id, stroke]));
+      state.strokes.forEach((stroke) => {
+        const existing = merged.get(stroke.id);
+        if (!existing || stroke.points.length > existing.points.length) {
+          merged.set(stroke.id, stroke);
+        }
+      });
+      return Array.from(merged.values());
+    });
+    setTexts((current) => {
+      const existingIds = new Set(current.map((text) => text.id));
+      return [...current, ...state.texts.filter((text) => !existingIds.has(text.id))];
+    });
 
-    setTimeout(() => {
+    if (senderRole === "teacher") {
+      setFiles(state.files);
+
+      if (!isTeacher) {
+        applyBoardView(state.view);
+      }
+    }
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
       isApplyingRemoteRef.current = false;
-    }, 0);
+    }));
   }
 
   function broadcastWhiteboardState() {
@@ -558,12 +576,16 @@ export function LessonRoomClient({
       return;
     }
 
+    if (event.button !== 0) {
+      return;
+    }
+
     if (isTeacher && tool === "zoom" && event.pointerType === "touch") {
       touchPointersRef.current.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
 
       if (touchPointersRef.current.size >= 2) {
         pinchRef.current = { distance: getTouchDistance(), zoom: boardZoom };
-        setCurrentStroke(null);
+        activeStrokeIdRef.current = null;
         return;
       }
     }
@@ -581,8 +603,9 @@ export function LessonRoomClient({
     const point = getBoardPoint(event);
 
     if (tool === "draw") {
+      event.currentTarget.setPointerCapture(event.pointerId);
       const nextStroke = { id: crypto.randomUUID(), color, width, points: [point] };
-      setCurrentStroke(nextStroke);
+      activeStrokeIdRef.current = nextStroke.id;
       setStrokes((items) => [...items, nextStroke]);
     }
 
@@ -627,14 +650,15 @@ export function LessonRoomClient({
       return;
     }
 
-    if (!currentStroke || tool !== "draw") {
+    const activeStrokeId = activeStrokeIdRef.current;
+
+    if (!activeStrokeId || tool !== "draw") {
       return;
     }
 
     const point = getBoardPoint(event);
-    setCurrentStroke((stroke) => (stroke ? { ...stroke, points: [...stroke.points, point] } : stroke));
     setStrokes((items) =>
-      items.map((stroke) => (stroke.id === currentStroke.id ? { ...stroke, points: [...stroke.points, point] } : stroke))
+      items.map((stroke) => (stroke.id === activeStrokeId ? { ...stroke, points: [...stroke.points, point] } : stroke))
     );
   }
 
@@ -647,7 +671,7 @@ export function LessonRoomClient({
       }
     }
 
-    setCurrentStroke(null);
+    activeStrokeIdRef.current = null;
     setFileInteraction(null);
     setBoardPan(null);
   }
@@ -883,20 +907,10 @@ export function LessonRoomClient({
               >
               <div className="sticky left-0 top-0 z-40 h-0 w-0 pointer-events-none">
                 <div
-                  className="absolute left-28 top-7 w-[330px] rounded-[1.1rem] border border-[#e5e7f4] bg-white p-2.5 shadow-[0_18px_45px_rgba(18,24,48,0.14)] pointer-events-auto"
+                  className="absolute left-28 top-7 w-[440px] overflow-hidden rounded-xl bg-[#2e2e2f] shadow-[0_18px_45px_rgba(18,24,48,0.18)] pointer-events-auto"
                   onPointerDown={(event) => event.stopPropagation()}
                 >
-                  <div className="mb-3 flex items-center justify-between px-2">
-                    <div className="flex items-center gap-2 text-sm font-black text-[#151a32]">
-                      <span className="flex h-4 items-end gap-0.5 text-emerald-500">
-                        <span className="h-1.5 w-1 rounded-full bg-current" />
-                        <span className="h-2.5 w-1 rounded-full bg-current" />
-                        <span className="h-4 w-1 rounded-full bg-current" />
-                      </span>
-                      Владимир
-                    </div>
-                  </div>
-                  <div className="relative h-[170px] overflow-hidden rounded-xl bg-[#2e2e2f] text-white">
+                  <div className="relative h-[260px] overflow-hidden bg-[#2e2e2f] text-white">
                     {hasVideoRoom ? (
                       <iframe
                         title="Daily video room"
