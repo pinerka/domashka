@@ -775,7 +775,14 @@ export function LessonRoomClient({
 
   async function uploadBoardAsset(blob: Blob, originalName: string) {
     const supabase = createSupabaseBrowserClient();
-    const safeName = originalName.toLowerCase().replace(/[^a-z0-9а-яё._-]+/gi, "-").slice(-100) || "asset";
+    const extension = originalName.toLowerCase().match(/\.[a-z0-9]{1,8}$/)?.[0] ?? "";
+    const baseName = originalName
+      .normalize("NFKD")
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 70) || "asset";
+    const safeName = baseName.endsWith(extension) ? baseName : `${baseName}${extension}`;
     const storagePath = `${lessonId}/${crypto.randomUUID()}-${safeName}`;
     const { error: uploadError } = await supabase.storage.from("lesson-assets").upload(storagePath, blob, {
       contentType: blob.type || "application/octet-stream",

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { getSavedUserRole } from "@/features/auth/queries";
 import { createLessonAction } from "@/features/lessons/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { CreateLessonSubmit } from "@/components/lessons/create-lesson-submit";
 
 export const dynamic = "force-dynamic";
 
@@ -192,10 +193,7 @@ export default async function NewLessonPage({
               </div>
 
               <div className="flex flex-col gap-5 border-t border-[#ececf4] pt-8 md:flex-row md:items-center">
-                <Button disabled={students.length === 0} className="h-14 rounded-2xl bg-[#675cff] px-8 text-base font-black shadow-[0_14px_30px_rgba(103,92,255,0.28)] hover:bg-[#5b50f0]">
-                  <Sparkles className="h-5 w-5" />
-                  Создать и пригласить
-                </Button>
+                <CreateLessonSubmit disabled={students.length === 0} />
                 <p className="max-w-md text-sm font-semibold leading-6 text-[#7770cc]">
                   Урок сразу появится в предстоящих у вас и выбранного ученика.
                 </p>

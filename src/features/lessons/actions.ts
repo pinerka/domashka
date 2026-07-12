@@ -72,6 +72,12 @@ export async function createLessonAction(formData: FormData) {
     .single();
 
   if (bookingError || !booking) {
+    if (bookingError?.code === "23505") {
+      revalidatePath("/");
+      revalidatePath("/student");
+      redirect("/");
+    }
+
     redirect(`/lessons/new?error=${encodeURIComponent(bookingError?.message ?? "Не удалось создать урок")}`);
   }
 
