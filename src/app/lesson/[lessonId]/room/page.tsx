@@ -21,12 +21,13 @@ export default async function LessonRoomPage({
   let title = query.title ?? "Урок";
   let startsAt = query.startsAt;
   let roomUrl = query.roomUrl;
+  let lessonStatus: "scheduled" | "live" | "completed" | "cancelled" = "scheduled";
 
   if (isSupabaseConfigured()) {
     const supabase = await createSupabaseServerClient();
     const { data: lesson } = await supabase
       .from("lessons")
-      .select("title, starts_at, ends_at, video_room_url")
+      .select("title, starts_at, ends_at, video_room_url, status")
       .eq("id", lessonId)
       .maybeSingle();
 
@@ -34,6 +35,7 @@ export default async function LessonRoomPage({
       title = lesson.title;
       startsAt = lesson.starts_at;
       roomUrl = lesson.video_room_url ?? undefined;
+      lessonStatus = lesson.status;
 
       if (!roomUrl) {
         const room = await createDailyRoom({
@@ -62,6 +64,7 @@ export default async function LessonRoomPage({
       startsAt={startsAt}
       roomUrl={roomUrl}
       userRole={userRole}
+      lessonStatus={lessonStatus}
     />
   );
 }

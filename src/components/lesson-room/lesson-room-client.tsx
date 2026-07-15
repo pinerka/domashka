@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, PointerEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Bell,
@@ -35,9 +36,11 @@ type UserRole = "student" | "teacher";
 type Point = { x: number; y: number };
 type Stroke = { id: string; color: string; width: number; points: Point[] };
 type TextItem = { id: string; x: number; y: number; value: string };
-type BoardFile = { id: string; type: "image"; url: string; name: string; x: number; y: number; width: number };
+type BoardFile = { id: string; type: "image"; url: string; storagePath?: string; name: string; x: number; y: number; width: number };
 type BoardView = { zoom: number; scrollLeft: number; scrollTop: number };
-type WhiteboardState = { strokes: Stroke[]; texts: TextItem[]; files: BoardFile[]; view: BoardView };
+type WhiteboardState = { strokes: Stroke[]; deletedStrokeIds: string[]; texts: TextItem[]; files: BoardFile[]; view: BoardView };
+type PersistedBoardFile = Omit<BoardFile, "url"> & { url?: string };
+type PersistedWhiteboardState = Omit<WhiteboardState, "files"> & { files: PersistedBoardFile[] };
 type WhiteboardSyncMessage =
   | { senderId: string; senderRole: UserRole; kind: "request_state" }
   | { senderId: string; senderRole: UserRole; kind: "state"; state: WhiteboardState }
@@ -165,14 +168,17 @@ export function LessonRoomClient({
   title,
   startsAt,
   roomUrl,
-  userRole
+  userRole,
+  lessonStatus
 }: {
   lessonId: string;
   title: string;
   startsAt?: string;
   roomUrl?: string;
   userRole: UserRole;
+  lessonStatus: "scheduled" | "live" | "completed" | "cancelled";
 }) {
+  const router = useRouter();
   const boardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const touchPointersRef = useRef(new Map<number, { clientX: number; clientY: number }>());
@@ -184,11 +190,15 @@ export function LessonRoomClient({
   const isApplyingRemoteRef = useRef(false);
   const syncReadyRef = useRef(false);
   const stateSyncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistenceReadyRef = useRef(false);
+  const persistenceQueueRef = useRef<Promise<void>>(Promise.resolve());
   const viewSyncFrameRef = useRef<number | null>(null);
   const [tool, setTool] = useState<Tool>("draw");
   const [color, setColor] = useState(colors[0]);
   const [width, setWidth] = useState(8);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [deletedStrokeIds, setDeletedStrokeIds] = useState<string[]>([]);
   const activeStrokeIdRef = useRef<string | null>(null);
   const [texts, setTexts] = useState<TextItem[]>([]);
   const [draftText, setDraftText] = useState<{ x: number; y: number; value: string } | null>(null);
@@ -197,10 +207,16 @@ export function LessonRoomClient({
   const [fileInteraction, setFileInteraction] = useState<FileInteraction | null>(null);
   const [boardPan, setBoardPan] = useState<BoardPan | null>(null);
   const [boardZoom, setBoardZoom] = useState(1);
+  const [persistenceReady, setPersistenceReady] = useState(false);
   const isTeacher = userRole === "teacher";
+  const isCompleted = lessonStatus === "completed";
+  const canEditBoard = !isCompleted;
+  const canControlView = isTeacher || isCompleted;
+  const canMoveFiles = isTeacher || isCompleted;
   const hasVideoRoom = isValidVideoRoomUrl(roomUrl);
   const boardZoomRef = useRef(boardZoom);
   const strokesRef = useRef(strokes);
+  const deletedStrokeIdsRef = useRef(deletedStrokeIds);
   const textsRef = useRef(texts);
   const filesRef = useRef(files);
 
@@ -209,8 +225,18 @@ export function LessonRoomClient({
   }, [boardZoom]);
 
   useEffect(() => {
+    if (isCompleted) {
+      setTool("hand");
+    }
+  }, [isCompleted]);
+
+  useEffect(() => {
     strokesRef.current = strokes;
   }, [strokes]);
+
+  useEffect(() => {
+    deletedStrokeIdsRef.current = deletedStrokeIds;
+  }, [deletedStrokeIds]);
 
   useEffect(() => {
     textsRef.current = texts;
@@ -233,8 +259,92 @@ export function LessonRoomClient({
       if (stateSyncTimeoutRef.current !== null) {
         clearTimeout(stateSyncTimeoutRef.current);
       }
+
+      if (persistenceTimeoutRef.current !== null) {
+        clearTimeout(persistenceTimeoutRef.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isRealtimeConfigured()) {
+      persistenceReadyRef.current = true;
+      setPersistenceReady(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadPersistedWhiteboard() {
+      const supabase = createSupabaseBrowserClient();
+      const { data, error } = await supabase.rpc("get_lesson_whiteboard", {
+        target_lesson_id: lessonId
+      });
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.error("Не удалось загрузить сохранённую доску", error);
+        setFileStatus(`Доска не загружена: ${error.message}`);
+        persistenceReadyRef.current = true;
+        setPersistenceReady(true);
+        return;
+      }
+
+      const snapshot = (data ?? {}) as Partial<PersistedWhiteboardState>;
+      const storedFiles = Array.isArray(snapshot.files) ? snapshot.files : [];
+      const paths = storedFiles.flatMap((file) => file.storagePath ? [file.storagePath] : []);
+      const signedUrls = new Map<string, string>();
+
+      if (paths.length > 0) {
+        const { data: signedFiles, error: signedUrlError } = await supabase.storage
+          .from("lesson-assets")
+          .createSignedUrls(paths, 60 * 60 * 24 * 7);
+
+        if (signedUrlError) {
+          console.error("Не удалось открыть материалы сохранённой доски", signedUrlError);
+        }
+
+        signedFiles?.forEach((file, index) => {
+          if (file.signedUrl) {
+            signedUrls.set(paths[index], file.signedUrl);
+          }
+        });
+      }
+
+      const restoredFiles: BoardFile[] = storedFiles.flatMap((file) => {
+        const url = (file.storagePath && signedUrls.get(file.storagePath)) || file.url;
+        return url ? [{ ...file, url } as BoardFile] : [];
+      });
+      const restoredStrokes = Array.isArray(snapshot.strokes) ? snapshot.strokes : [];
+      const restoredDeletedStrokeIds = Array.isArray(snapshot.deletedStrokeIds) ? snapshot.deletedStrokeIds : [];
+      const restoredTexts = Array.isArray(snapshot.texts) ? snapshot.texts : [];
+
+      strokesRef.current = restoredStrokes;
+      deletedStrokeIdsRef.current = restoredDeletedStrokeIds;
+      textsRef.current = restoredTexts;
+      filesRef.current = restoredFiles;
+      setStrokes(restoredStrokes);
+      setDeletedStrokeIds(restoredDeletedStrokeIds);
+      setTexts(restoredTexts);
+      setFiles(restoredFiles);
+
+      if (snapshot.view) {
+        applyBoardView(snapshot.view);
+      }
+
+      persistenceReadyRef.current = true;
+      setPersistenceReady(true);
+    }
+
+    void loadPersistedWhiteboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lessonId]);
 
   useEffect(() => {
     const previousHtmlOverscroll = document.documentElement.style.overscrollBehaviorX;
@@ -263,7 +373,7 @@ export function LessonRoomClient({
   }, []);
 
   useEffect(() => {
-    if (!isRealtimeConfigured()) {
+    if (!isRealtimeConfigured() || !persistenceReady || isCompleted) {
       return;
     }
 
@@ -312,11 +422,12 @@ export function LessonRoomClient({
       channelRef.current = null;
       void channel.unsubscribe();
     };
-  }, [lessonId]);
+  }, [lessonId, persistenceReady, isCompleted]);
 
   useEffect(() => {
     scheduleWhiteboardStateSync();
-  }, [strokes, texts, files]);
+    scheduleWhiteboardPersistence();
+  }, [strokes, deletedStrokeIds, texts, files]);
 
   const displayDate = startsAt
     ? new Intl.DateTimeFormat("ru-RU", {
@@ -348,10 +459,60 @@ export function LessonRoomClient({
   function getWhiteboardState(): WhiteboardState {
     return {
       strokes: strokesRef.current,
+      deletedStrokeIds: deletedStrokeIdsRef.current,
       texts: textsRef.current,
       files: filesRef.current.filter((file) => file.url.startsWith("https://")),
       view: getBoardView()
     };
+  }
+
+  function getPersistedWhiteboardState(): PersistedWhiteboardState {
+    return {
+      strokes: strokesRef.current,
+      deletedStrokeIds: deletedStrokeIdsRef.current,
+      texts: textsRef.current,
+      files: filesRef.current.flatMap(({ url, ...file }) => file.storagePath ? [file] : []),
+      view: getBoardView()
+    };
+  }
+
+  async function persistWhiteboardState() {
+    if (!persistenceReadyRef.current || !isRealtimeConfigured() || isCompleted) {
+      return;
+    }
+
+    const snapshot = getPersistedWhiteboardState();
+    persistenceQueueRef.current = persistenceQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const supabase = createSupabaseBrowserClient();
+        const { error } = await supabase.rpc("save_lesson_whiteboard", {
+          target_lesson_id: lessonId,
+          target_snapshot: snapshot
+        });
+
+        if (error) {
+          console.error("Не удалось сохранить доску", error);
+          setFileStatus(`Доска не сохранена: ${error.message}`);
+        }
+      });
+
+    await persistenceQueueRef.current;
+  }
+
+  function scheduleWhiteboardPersistence(delay = 400) {
+    if (!persistenceReadyRef.current || isApplyingRemoteRef.current || isCompleted) {
+      return;
+    }
+
+    if (persistenceTimeoutRef.current !== null) {
+      clearTimeout(persistenceTimeoutRef.current);
+    }
+
+    persistenceTimeoutRef.current = setTimeout(() => {
+      persistenceTimeoutRef.current = null;
+      void persistWhiteboardState();
+    }, delay);
   }
 
   function sendSyncMessage(message: OutgoingWhiteboardSyncMessage) {
@@ -391,9 +552,18 @@ export function LessonRoomClient({
 
   function applyRemoteState(state: WhiteboardState, senderRole: UserRole) {
     isApplyingRemoteRef.current = true;
+    const remoteDeletedIds = Array.isArray(state.deletedStrokeIds) ? state.deletedStrokeIds : [];
+    const allDeletedIds = new Set([...deletedStrokeIdsRef.current, ...remoteDeletedIds]);
+    const nextDeletedIds = Array.from(allDeletedIds);
+    deletedStrokeIdsRef.current = nextDeletedIds;
+    setDeletedStrokeIds(nextDeletedIds);
     setStrokes((current) => {
-      const merged = new Map(current.map((stroke) => [stroke.id, stroke]));
+      const merged = new Map(current.filter((stroke) => !allDeletedIds.has(stroke.id)).map((stroke) => [stroke.id, stroke]));
       state.strokes.forEach((stroke) => {
+        if (allDeletedIds.has(stroke.id)) {
+          return;
+        }
+
         const existing = merged.get(stroke.id);
         if (!existing || stroke.points.length > existing.points.length) {
           merged.set(stroke.id, stroke);
@@ -416,6 +586,7 @@ export function LessonRoomClient({
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
       isApplyingRemoteRef.current = false;
+      scheduleWhiteboardPersistence(0);
     }));
   }
 
@@ -446,6 +617,7 @@ export function LessonRoomClient({
     viewSyncFrameRef.current = requestAnimationFrame(() => {
       viewSyncFrameRef.current = null;
       sendSyncMessage({ kind: "view", view: getBoardView() });
+      scheduleWhiteboardPersistence();
     });
   }
 
@@ -458,7 +630,7 @@ export function LessonRoomClient({
   }
 
   function zoomBoardTo(nextZoom: number, anchor?: { clientX: number; clientY: number }) {
-    if (!isTeacher) {
+    if (!canControlView) {
       return;
     }
 
@@ -576,7 +748,7 @@ export function LessonRoomClient({
       return;
     }
 
-    if (isTeacher && tool === "zoom" && event.pointerType === "touch") {
+    if (canControlView && tool === "zoom" && event.pointerType === "touch") {
       touchPointersRef.current.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
 
       if (touchPointersRef.current.size >= 2) {
@@ -586,7 +758,7 @@ export function LessonRoomClient({
       }
     }
 
-    if (isTeacher && tool === "hand") {
+    if (canControlView && tool === "hand") {
       setBoardPan({
         startClientX: event.clientX,
         startClientY: event.clientY,
@@ -598,24 +770,34 @@ export function LessonRoomClient({
 
     const point = getBoardPoint(event);
 
-    if (tool === "draw") {
+    if (canEditBoard && tool === "draw") {
       event.currentTarget.setPointerCapture(event.pointerId);
       const nextStroke = { id: crypto.randomUUID(), color, width, points: [point] };
       activeStrokeIdRef.current = nextStroke.id;
       setStrokes((items) => [...items, nextStroke]);
     }
 
-    if (tool === "erase") {
-      setStrokes((items) => items.filter((stroke) => distanceToStroke(point, stroke) > Math.max(18, width * 2)));
+    if (canEditBoard && tool === "erase") {
+      setStrokes((items) => {
+        const removedIds = items
+          .filter((stroke) => distanceToStroke(point, stroke) <= Math.max(18, width * 2))
+          .map((stroke) => stroke.id);
+
+        if (removedIds.length > 0) {
+          setDeletedStrokeIds((ids) => Array.from(new Set([...ids, ...removedIds])));
+        }
+
+        return items.filter((stroke) => !removedIds.includes(stroke.id));
+      });
     }
 
-    if (tool === "text") {
+    if (canEditBoard && tool === "text") {
       setDraftText({ x: point.x, y: point.y, value: "" });
     }
   }
 
   function movePointer(event: PointerEvent) {
-    if (isTeacher && tool === "zoom" && event.pointerType === "touch" && touchPointersRef.current.has(event.pointerId)) {
+    if (canControlView && tool === "zoom" && event.pointerType === "touch" && touchPointersRef.current.has(event.pointerId)) {
       touchPointersRef.current.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
 
       if (pinchRef.current && touchPointersRef.current.size >= 2) {
@@ -670,10 +852,11 @@ export function LessonRoomClient({
     activeStrokeIdRef.current = null;
     setFileInteraction(null);
     setBoardPan(null);
+    scheduleWhiteboardPersistence(0);
   }
 
   function startFileInteraction(event: PointerEvent<HTMLDivElement>, file: BoardFile, mode: FileInteraction["mode"]) {
-    if (!isTeacher || tool !== "hand") {
+    if (!canMoveFiles || tool !== "hand") {
       return;
     }
 
@@ -703,6 +886,11 @@ export function LessonRoomClient({
     setDraftText(null);
   }
 
+  function clearBoardStrokes() {
+    setDeletedStrokeIds((ids) => Array.from(new Set([...ids, ...strokesRef.current.map((stroke) => stroke.id)])));
+    setStrokes([]);
+  }
+
   async function addFiles(event: ChangeEvent<HTMLInputElement>) {
     const selectedFiles = Array.from(event.target.files ?? []);
     const board = boardRef.current;
@@ -724,10 +912,10 @@ export function LessonRoomClient({
 
           const uploadedPages = await Promise.all(pdfResult.pages.map(async (page) => {
             const pageBlob = await fetch(page.url).then((response) => response.blob());
-            return { id: page.id, url: await uploadBoardAsset(pageBlob, `${page.name}.png`) };
+            return { id: page.id, asset: await uploadBoardAsset(pageBlob, `${page.name}.png`) };
           }));
-          const uploadedUrls = new Map(uploadedPages.map((page) => [page.id, page.url]));
-          setFiles((items) => items.map((item) => uploadedUrls.has(item.id) ? { ...item, url: uploadedUrls.get(item.id)! } : item));
+          const uploadedAssets = new Map(uploadedPages.map((page) => [page.id, page.asset]));
+          setFiles((items) => items.map((item) => uploadedAssets.has(item.id) ? { ...item, ...uploadedAssets.get(item.id)! } : item));
           nextY = pdfResult.bottomY + 24;
         } catch (error) {
           console.error("Не удалось добавить PDF на доску", error);
@@ -753,8 +941,8 @@ export function LessonRoomClient({
         }]);
 
         try {
-          const sharedUrl = await uploadBoardAsset(file, file.name);
-          setFiles((items) => items.map((item) => item.id === imageId ? { ...item, url: sharedUrl } : item));
+          const sharedAsset = await uploadBoardAsset(file, file.name);
+          setFiles((items) => items.map((item) => item.id === imageId ? { ...item, ...sharedAsset } : item));
           URL.revokeObjectURL(localUrl);
         } catch (error) {
           console.error("Не удалось добавить изображение на доску", error);
@@ -799,7 +987,7 @@ export function LessonRoomClient({
       throw urlError ?? new Error("Не удалось получить ссылку на файл");
     }
 
-    return data.signedUrl;
+    return { url: data.signedUrl, storagePath };
   }
 
   const toolButtonClass = "flex h-12 w-12 items-center justify-center rounded-2xl text-[#0b1024] transition hover:bg-[#f1efff]";
@@ -808,7 +996,7 @@ export function LessonRoomClient({
   useEffect(() => {
     const board = boardRef.current;
 
-    if (!board || !isTeacher || tool !== "zoom") {
+    if (!board || !canControlView || tool !== "zoom") {
       return;
     }
 
@@ -833,10 +1021,10 @@ export function LessonRoomClient({
       board.removeEventListener("gesturestart", preventPageGesture);
       board.removeEventListener("gesturechange", preventPageGesture);
     };
-  }, [boardZoom, isTeacher, tool]);
+  }, [boardZoom, canControlView, tool]);
 
   useEffect(() => {
-    if (!isTeacher) {
+    if (!canControlView) {
       return;
     }
 
@@ -859,18 +1047,22 @@ export function LessonRoomClient({
       window.removeEventListener("wheel", handleTrackpadPinch, { capture: true });
       document.removeEventListener("wheel", handleTrackpadPinch, { capture: true });
     };
-  }, [boardZoom, isTeacher]);
+  }, [boardZoom, canControlView]);
 
   return (
     <main className="h-screen overflow-hidden bg-white text-[#090d21]">
-      <Button asChild variant="outline" className="fixed left-6 top-1 z-[70] h-11 rounded-full border-[#deddf1] bg-white/95 px-5 font-bold shadow-sm backdrop-blur">
-        <Link href="/">
+      <Button variant="outline" className="fixed left-6 top-1 z-[70] h-11 rounded-full border-[#deddf1] bg-white/95 px-5 font-bold shadow-sm backdrop-blur" onClick={async () => {
+        await persistWhiteboardState();
+        router.push("/");
+      }}>
           <ArrowLeft className="h-4 w-4" />
           Назад
-        </Link>
       </Button>
-      {isTeacher ? (
-        <form action={finishLessonAction} className="fixed right-6 top-6 z-[70]">
+      {isTeacher && !isCompleted ? (
+        <form action={async (formData) => {
+          await persistWhiteboardState();
+          await finishLessonAction(formData);
+        }} className="fixed right-6 top-6 z-[70]">
           <input type="hidden" name="lesson_id" value={lessonId} />
           <Button className="h-11 rounded-full bg-emerald-600 px-5 font-bold hover:bg-emerald-700">
             Завершить урок
@@ -945,7 +1137,7 @@ export function LessonRoomClient({
 
           <section
             ref={boardRef}
-            className={`relative h-screen rounded-none border-0 bg-white shadow-none ${isTeacher ? "overflow-auto" : "overflow-hidden"}`}
+            className={`relative h-screen rounded-none border-0 bg-white shadow-none ${canControlView ? "overflow-auto" : "overflow-hidden"}`}
             onPointerDown={startPointer}
             onPointerMove={movePointer}
             onPointerUp={endPointer}
@@ -989,21 +1181,21 @@ export function LessonRoomClient({
                 className="sticky left-7 top-7 z-50 flex w-16 flex-col items-center gap-2 rounded-[1.35rem] border border-[#e5e7f4] bg-white/96 p-2 shadow-[0_16px_36px_rgba(18,24,48,0.10)] backdrop-blur"
                 onPointerDown={(event) => event.stopPropagation()}
               >
-                <button className={`${toolButtonClass} ${tool === "draw" ? activeToolClass : ""}`} onClick={() => setTool("draw")} aria-label="Рисовать">
+                {canEditBoard ? <button className={`${toolButtonClass} ${tool === "draw" ? activeToolClass : ""}`} onClick={() => setTool("draw")} aria-label="Рисовать">
                   <Pencil className="h-5 w-5" />
-                </button>
-                <button className={`${toolButtonClass} ${tool === "erase" ? activeToolClass : ""}`} onClick={() => setTool("erase")} aria-label="Ластик">
+                </button> : null}
+                {canEditBoard ? <button className={`${toolButtonClass} ${tool === "erase" ? activeToolClass : ""}`} onClick={() => setTool("erase")} aria-label="Ластик">
                   <Eraser className="h-5 w-5" />
-                </button>
-                {isTeacher ? (
+                </button> : null}
+                {canControlView ? (
                   <button className={`${toolButtonClass} ${tool === "hand" ? activeToolClass : ""}`} onClick={() => setTool("hand")} aria-label="Двигать доску">
                     <MousePointer2 className="h-5 w-5" />
                   </button>
                 ) : null}
-                <button className={`${toolButtonClass} ${tool === "text" ? activeToolClass : ""}`} onClick={() => setTool("text")} aria-label="Текст">
+                {canEditBoard ? <button className={`${toolButtonClass} ${tool === "text" ? activeToolClass : ""}`} onClick={() => setTool("text")} aria-label="Текст">
                   <Type className="h-5 w-5" />
-                </button>
-                {isTeacher ? (
+                </button> : null}
+                {isTeacher && canEditBoard ? (
                   <>
                     <button className={toolButtonClass} aria-label="Чат">
                       <MessageSquare className="h-5 w-5" />
@@ -1034,7 +1226,7 @@ export function LessonRoomClient({
               {files.map((file) => (
                 <div
                   key={file.id}
-                  className={`group absolute z-10 select-none overflow-hidden rounded-2xl border border-[#dfe1ee] bg-white shadow-[0_12px_34px_rgba(17,24,39,0.10)] transition-shadow hover:shadow-[0_18px_44px_rgba(17,24,39,0.16)] ${isTeacher && tool === "hand" ? "touch-none" : "pointer-events-none"}`}
+                  className={`group absolute z-10 select-none overflow-hidden rounded-2xl border border-[#dfe1ee] bg-white shadow-[0_12px_34px_rgba(17,24,39,0.10)] transition-shadow hover:shadow-[0_18px_44px_rgba(17,24,39,0.16)] ${canMoveFiles && tool === "hand" ? "touch-none" : "pointer-events-none"}`}
                   style={{ left: file.x, top: file.y, width: file.width }}
                   onPointerDown={(event) => startFileInteraction(event, file, "move")}
                   onPointerMove={(event) => {
@@ -1048,14 +1240,14 @@ export function LessonRoomClient({
                     }
                   }}
                 >
-                  <div className={`${isTeacher && tool === "hand" ? "cursor-move" : ""} flex items-center justify-between border-b border-[#ececf4] px-4 py-2 text-sm font-bold text-[#131525]`}>
+                  <div className={`${canMoveFiles && tool === "hand" ? "cursor-move" : ""} flex items-center justify-between border-b border-[#ececf4] px-4 py-2 text-sm font-bold text-[#131525]`}>
                     <span className="truncate pr-3">{file.name}</span>
-                    {isTeacher && tool === "hand" ? <span className="rounded-full bg-[#f1efff] px-2 py-1 text-[11px] font-black text-[#6d5dfc] opacity-0 transition group-hover:opacity-100">
+                    {canMoveFiles && tool === "hand" ? <span className="rounded-full bg-[#f1efff] px-2 py-1 text-[11px] font-black text-[#6d5dfc] opacity-0 transition group-hover:opacity-100">
                       Перетащить
                     </span> : null}
                   </div>
                   <img src={file.url} alt={file.name} className="block w-full object-contain" draggable={false} />
-                  {isTeacher && tool === "hand" ? (
+                  {canMoveFiles && tool === "hand" ? (
                     <div
                       className="absolute bottom-2 right-2 h-7 w-7 cursor-nwse-resize rounded-lg border border-[#d9dbeb] bg-white/95 shadow-[0_6px_18px_rgba(17,24,39,0.15)] after:absolute after:bottom-2 after:right-2 after:h-3 after:w-3 after:border-b-2 after:border-r-2 after:border-[#6d5dfc]"
                       onPointerDown={(event) => startFileInteraction(event, file, "resize")}
@@ -1112,7 +1304,7 @@ export function LessonRoomClient({
               </div>
             </div>
 
-            <div
+            {canEditBoard ? <div
               className="fixed bottom-6 left-1/2 z-50 flex w-fit max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-5 overflow-x-auto rounded-[1.35rem] border border-[#e3e6f3] bg-white/96 px-4 py-3 shadow-[0_18px_45px_rgba(18,24,48,0.12)] backdrop-blur"
               onPointerDown={(event) => event.stopPropagation()}
             >
@@ -1147,7 +1339,7 @@ export function LessonRoomClient({
               {isTeacher ? (
                 <>
                   <div className="h-8 w-px bg-[#eceef6]" />
-                  <Button variant="outline" className="h-11 rounded-2xl border-[#e5e7f4] bg-white px-4 font-bold" onClick={() => setStrokes([])}>
+                  <Button variant="outline" className="h-11 rounded-2xl border-[#e5e7f4] bg-white px-4 font-bold" onClick={clearBoardStrokes}>
                     <Trash2 className="h-4 w-4" />
                     Очистить
                   </Button>
@@ -1158,9 +1350,9 @@ export function LessonRoomClient({
                 </>
               ) : null}
               <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.pdf" multiple className="hidden" onChange={addFiles} />
-            </div>
+            </div> : null}
 
-            {isTeacher ? (
+            {canControlView ? (
               <div
                 className="fixed bottom-6 right-6 z-50 flex w-fit items-center gap-5 rounded-[1.35rem] border border-[#e3e6f3] bg-white/96 px-4 py-3 text-base font-black shadow-[0_18px_45px_rgba(18,24,48,0.12)] backdrop-blur"
                 onPointerDown={(event) => event.stopPropagation()}
